@@ -1,14 +1,24 @@
 import random
 
 class SimpleNode:
-    def __init__(self, activation_chance: float, deactivation_chance: float, can_cascade = True):
-        if 0 <= activation_chance <= 1:
-            self.activation_chance = activation_chance
+    def __init__(self, passive_activation_chance: float, passive_deactivation_chance: float, active_activation_chance: float, active_deactivation_chance: float, can_cascade = True):
+        if 0 <= passive_activation_chance <= 1:
+            self.passive_activation_chance = passive_activation_chance
         else:
             raise ValueError("activation_chance must be between 0 and 1")
         
-        if 0 <= deactivation_chance <= 1:
-            self.deactivation_chance = deactivation_chance
+        if 0 <= passive_deactivation_chance <= 1:
+            self.passive_deactivation_chance = passive_deactivation_chance
+        else:
+            raise ValueError("deactivation_chance must be between 0 and 1")
+        
+        if 0 <= passive_activation_chance <= 1:
+            self.active_activation_chance = active_activation_chance
+        else:
+            raise ValueError("activation_chance must be between 0 and 1")
+        
+        if 0 <= passive_deactivation_chance <= 1:
+            self.active_deactivation_chance = active_deactivation_chance
         else:
             raise ValueError("deactivation_chance must be between 0 and 1")
         
@@ -35,6 +45,21 @@ class SimpleNode:
             return True
         else:
             return False
+    
+    def getPassiveActivationChance(self):
+        return self.passive_activation_chance
+    
+    def getPassiveDeactivationChance(self):
+        return self.passive_deactivation_chance
+    
+    def getActiveActivationChance(self):
+        return self.active_activation_chance
+    
+    def getActiveDeactivationChance(self):
+        return self.active_deactivation_chance
+    
+    def rearm(self):
+        self.can_cascade = True
 
     def __hash__(self):
         """
@@ -44,7 +69,7 @@ class SimpleNode:
         return hash((self._unique_id))
     
     def __repr__(self):
-        return f"Node(active={self.active}, activation_chance={self.activation_chance})"
+        return f"Node(active={self.active}, passive_activation_chance={self.passive_activation_chance}, active_activation_chance={self.active_activation_chance})"
 
     def __eq__(self, other):
         """Check equality between two Node objects."""

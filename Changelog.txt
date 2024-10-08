@@ -1,0 +1,14 @@
+Changelog
+
+Week of 10/4
+
+-added in active transition probabilities (no longer 100/0)
+-refactored active transition into separate function
+-implement node rearmament
+-develop reward function for utility of current state
+-reorganized certain functions into legacyMethods.py
+-implemented recursive implementation of Bellman's equation
+
+DO:
+- implement tabular version of bellman
+- prove submodularity for the Q(s,a) function assuming V(s) is given
