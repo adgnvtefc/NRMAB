@@ -36,8 +36,7 @@ while True:
 
     # seed nodes according to our function and transition them.
     #(seeded_nodes, transition_nodes) = ns.seed_and_passive_transition(G, ns.hill_climb, num=2)
-    #NOTE: THIS CURRENT BREAKS IF YOU HAVE ALL NODES ACTIVATED. I WILL FIX IT... EVENTUALLY
-    (seeded_nodes, transition_nodes) = ns.seed_and_passive_transition(G, ns.hill_climb_with_bellman, num=2, num_samples=1)
+    (seeded_nodes, transition_nodes) = ns.seed_and_passive_transition(G, ns.hill_climb_with_bellman, num=1, horizon=1, num_samples=1)
 
     #transition seeded nodes based on active transition probabilities
     changed_nodes = ns.active_state_transition(seeded_nodes)
@@ -62,7 +61,6 @@ while True:
 
     newlyActivated = ns.independent_cascade_allNodes(G, 0.1)
 
-    ###add step here -- 'rearm' all nodes for cascade for the next timestep
     ns.rearm_nodes(G)
 
     print("Cascade Activated " + str(newlyActivated))

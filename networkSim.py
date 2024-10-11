@@ -1,5 +1,4 @@
 import networkx as nx
-import matplotlib.pyplot as plt
 import random
 from simpleNode import SimpleNode as Node
 import heapq
@@ -120,7 +119,6 @@ class NetworkSim:
         seeded_set = seed_function(graph, **kwargs)
         return (seeded_set, NetworkSim.passive_state_transition_without_neighbors(graph, exempt_nodes = seeded_set))
 
-    ###change -- within each timestep, each node can only activate once
     @staticmethod
     def independent_cascade_allNodes(graph, edge_weight):
         cascadeNodes = set()
@@ -188,16 +186,23 @@ class NetworkSim:
     #defines the value of being in a certain state, denoted as V(s)
     #num is k, the number of nodes to activate in the subsequent action
     #note: in current implementation, state space gets very very big
-    #horizon: how far in the future to look (CHANGE: CHANGE HORIZON TO 1)
+    #horizon: how far in the future to look
+
     #alternative -- make DP table of state/action value function, and repeatedly update state value and action value
     # where V(s) is a table of ALL possible states and Q(s, a) is a table of ALL possible state-action pairs
     # V(s) can be a 1-D list and Q(s) can be a 2-D matrix with s as one indices and A as other indices
     # ACTION: VERIFY SUBMODULARITY F(A + x) - F(A) > f(B + x) - f(B) given A < B
     @staticmethod
-    def state_value_function(graph, num=1, gamma=0.7, horizon=3, num_samples=5):
+    def state_value_function(graph, num=1, gamma=0.7, horizon=1, max_horizon = None, num_samples=5):
+        
         if horizon == 0:
             # Base case: horizon is 0, return 0
             return (0, None)
+        
+        #keep track of our max horizon value
+        if max_horizon == None:
+            max_horizon = horizon
+        
         # "consume" one horizon point to look a step into the future
         horizon -= 1
 
@@ -207,7 +212,7 @@ class NetworkSim:
         max_value = float('-inf')
         optimal_action = None
         for action in possible_actions:
-            value = NetworkSim.action_value_function(graph, action, num, gamma, horizon, num_samples)
+            value = NetworkSim.action_value_function(graph, action, num, gamma, horizon, max_horizon, num_samples)
             if value > max_value:
                 max_value = value
                 #note that this is INDICES
@@ -227,7 +232,7 @@ class NetworkSim:
     # and take the average reward of each state
     # this explanation does not make much sense, but you will see what i mean
     @staticmethod
-    def action_value_function(graph, action, num, gamma, horizon, num_samples):
+    def action_value_function(graph, action, num, gamma, horizon, max_horizon, num_samples):
         #the rewards for performing the actions specified on the current state
         immediate_reward = NetworkSim.reward_function(graph, action)
 
@@ -239,17 +244,14 @@ class NetworkSim:
             #simulate next state based on the graph and action taken
             next_state = NetworkSim.simulate_next_state(graph, action)
 
-            #update the gamma here
-            #to-change -- maybe update gamma and horizon in the same timestep? otherwise can be confusing to change
-            #this should work for now tho
-            #CHANGE: FIX GAMMA
             future_value = NetworkSim.state_value_function(
-                next_state, num, gamma * gamma, horizon, num_samples)[0]
+                next_state, num, gamma, horizon, max_horizon, num_samples)[0]
             total_future_value += future_value
 
         expected_future_value = total_future_value / num_samples
 
-        total_value = immediate_reward + gamma * expected_future_value
+        #gamma should change properly now (ex on first of horizon=2, max_horizon = 3, gamma**1, on second, horizon=1, max_horizon = 3, gamma ** 2)
+        total_value = immediate_reward + (gamma ** max_horizon - horizon) * expected_future_value
         return total_value
     
     #helper function to simulate the full next state of the graph
@@ -279,17 +281,16 @@ class NetworkSim:
     @staticmethod
     def generate_possible_actions(graph, num):
         #node that these should be node indices in the graph, not node objects
-        inactive_nodes = [node for node in graph.nodes() if not graph.nodes[node]['obj'].isActive()]
+        nodes = [node for node in graph.nodes()]
 
         #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
-        return list(itertools.combinations(inactive_nodes, num))
+        return list(itertools.combinations(nodes, num))
 
 
     #same as above but returns node objects instead
     @staticmethod
     def generate_possible_actions_nodes(graph, num):
         #node that these should be node indices in the graph, not node objects
-        #CHANGE: don't restrict actions to inactive nodes
         nodes = [graph[node]['obj'] for node in graph.nodes()]
 
         #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
@@ -365,7 +366,6 @@ class NetworkSim:
         return seeded_set
 
     
-
 
 #implement better selection algorithm here...
 

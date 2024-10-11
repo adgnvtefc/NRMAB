@@ -12,3 +12,8 @@ Week of 10/4
 DO:
 - implement tabular version of bellman
 - prove submodularity for the Q(s,a) function assuming V(s) is given
+
+Week of 10/11
+-fixed issues from last week
+-implemented q table learning
+-refactored visual component

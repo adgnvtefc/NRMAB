@@ -74,5 +74,5 @@ class SimpleNode:
     def __eq__(self, other):
         """Check equality between two Node objects."""
         if isinstance(other, SimpleNode):
-            return (self._unique_id, self.active, self.activation_chance) == (other._unique_id, other.active, other.activation_chance)
+            return (self._unique_id, self.active, self.active_activation_chance) == (other._unique_id, other.active, other.active_activation_chance)
         return False
