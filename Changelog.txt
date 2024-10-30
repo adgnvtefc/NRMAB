@@ -17,3 +17,24 @@ Week of 10/11
 -fixed issues from last week
 -implemented q table learning
 -refactored visual component
+
+DO:
+-performance comparison with some other techniques
+ -hill-climbing (still need q table)
+ -implement another representation of the Q table (ex. Q function can be represented by neural network)
+ -no action
+ -random action
+
+-implement metrics for comparison
+ -average number of active nodes
+ -check submodularity
+
+Week of 10/25:
+-Deep Q learning attempted (it is horrendous)
+-moved the hillclimbing functions into its separate class
+-implemented performance comparison
+
+DO:
+-try using deep q learning using openai gym (or RLib, which is reinforcement learning with
+ many algorithms implemented) (see slack)
+

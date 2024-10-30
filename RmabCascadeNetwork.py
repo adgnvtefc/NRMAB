@@ -1,6 +1,7 @@
 from networkSim import NetworkSim as ns
 import networkx as nx
 import matplotlib.pyplot as plt
+from hillClimb import HillClimb as hc
 
 #activation chance in passive action
 PASSIVE_ACTIVATION_CHANCE = 0.1
@@ -36,7 +37,7 @@ while True:
 
     # seed nodes according to our function and transition them.
     #(seeded_nodes, transition_nodes) = ns.seed_and_passive_transition(G, ns.hill_climb, num=2)
-    (seeded_nodes, transition_nodes) = ns.seed_and_passive_transition(G, ns.hill_climb_with_bellman, num=1, horizon=1, num_samples=1)
+    (seeded_nodes, transition_nodes) = ns.seed_and_passive_transition(G, hc.hill_climb_with_bellman, num=2, horizon=1, num_samples=1)
 
     #transition seeded nodes based on active transition probabilities
     changed_nodes = ns.active_state_transition(seeded_nodes)

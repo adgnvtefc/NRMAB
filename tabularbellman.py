@@ -50,6 +50,7 @@ class TabularBellman:
                                 next_graph = copy.deepcopy(graph)
 
                                 # Apply the action to the graph
+                                #CHANGE: Take into account activation probabilities
                                 for node_index in action:
                                     next_graph.nodes[node_index]['obj'].activate()
 
@@ -100,7 +101,25 @@ class TabularBellman:
         
         best_action = self.get_action_from_index(action_index)
         return (best_action, best_utility)
+
+    #same as above but returns the node objects
+    def get_best_action_nodes(self, graph):
+        # Get the state index for the current graph
+        state_index = self.calculate_state_table_pos(graph)
+
+        # Find the action with the highest utility in the Q-table for the current state
+        action_index = np.argmax(self.qtable[state_index])
+        best_utility = np.max(self.qtable[state_index])
+
+        # Convert the action index to node indices
+        best_action_indices = self.get_action_from_index(action_index)
+
+        # Convert the node indices to node objects
+        best_action_nodes = [graph.nodes[node_index]['obj'] for node_index in best_action_indices]
+
+        return (best_action_nodes, best_utility)
     
+
     # Helper function to reconstruct the graph from a state index
     def get_graph_from_state(self, state_index):
         # Create a deep copy of the initial graph to avoid modifying it

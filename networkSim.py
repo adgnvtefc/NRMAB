@@ -152,6 +152,26 @@ class NetworkSim:
         return True
 
 
+    #helper function for selecting tuples of num actions among all nodes
+    #returns list of tuples of graph indices
+    @staticmethod
+    def generate_possible_actions(graph, num):
+        #node that these should be node indices in the graph, not node objects
+        nodes = [node for node in graph.nodes()]
+
+        #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
+        return list(itertools.combinations(nodes, num))
+
+
+    #same as above but returns node objects instead
+    @staticmethod
+    def generate_possible_actions_nodes(graph, num):
+        #node that these should be node indices in the graph, not node objects
+        nodes = [graph[node]['obj'] for node in graph.nodes()]
+
+        #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
+        return list(itertools.combinations(nodes, num))
+
     
     #also consider future reward for that particular activation -- in the next timestep
     #usually -- bellman equation -- define value function of a certain state, and use that to write bellman equation
@@ -275,109 +295,5 @@ class NetworkSim:
         NetworkSim.determine_edge_activation(new_graph)
 
         return new_graph
-    
-    #helper function for selecting tuples of num actions among INACTIVE nodes for activation
-    #returns list of tuples of graph indices
-    @staticmethod
-    def generate_possible_actions(graph, num):
-        #node that these should be node indices in the graph, not node objects
-        nodes = [node for node in graph.nodes()]
-
-        #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
-        return list(itertools.combinations(nodes, num))
-
-
-    #same as above but returns node objects instead
-    @staticmethod
-    def generate_possible_actions_nodes(graph, num):
-        #node that these should be node indices in the graph, not node objects
-        nodes = [graph[node]['obj'] for node in graph.nodes()]
-
-        #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
-        return list(itertools.combinations(nodes, num))
-
-
-    #okay this one isn't really hill climb anymore, more like just pure bellman
-    @staticmethod
-    def hill_climb_with_bellman(graph, num=1, gamma=0.7, horizon=3, num_samples=5):
-        seeded_set = set()
-        (utility, action) = NetworkSim.state_value_function(graph, num, gamma, horizon, num_samples)
-
-        #inefficiency carried over from previous hill climbing algo
-        print("Predicted utility gain:" + str(utility))
-
-        for node_index in action:
-            seeded_set.add(graph.nodes[node_index]['obj'])
-        
-        return seeded_set
-        
-
-    @staticmethod
-    def hill_climb(graph, num=1):
-        seeded_set = set()
-        node_values = []
-
-        #iterate thru graph to see nodes that can pick
-        for node in graph:
-            #arbitrarily chosen discount factor
-            discount_factor = 0.5
-
-            #replace this value with the value function
-            value = 0
-
-            #bootstrap solution to not double activate node under guaranteed activation
-            if graph.nodes[node]['obj'].isActive():
-                value -= 10
-
-            if not graph.nodes[node]['obj'].canCascade():
-                value += 1
-            else:
-                queue = [(node, 0)]
-                visited_set = set()
-                visited_set.add(node)
-                while queue:
-                    current_node, depth = queue.pop()                    
-                    current_node_obj = graph.nodes[current_node]['obj']
-                    #value of nodes decrease as u get further from the activated node
-                    value += 1 * discount_factor ** depth
-
-                    #extension -- different edge weights -- multiply discount factor by all edge weights on the path
-
-                    #get the nodes this node can cascade to
-                    if not current_node_obj.canCascade():
-                        continue
-                    for neighbor in graph.neighbors(current_node):
-                        neighbor_obj = graph.nodes[neighbor]['obj']
-                        if neighbor not in visited_set and neighbor_obj.canCascade():
-                            visited_set.add(neighbor)
-                            next_depth = depth + 1
-                            queue.append((neighbor, next_depth))
-
-            node_values.append((value, node))
-        top_nodes = heapq.nlargest(num, node_values)
-        selected_nodes = [node for value, node in top_nodes]
-
-        for node in selected_nodes:
-            seeded_set.add(graph.nodes[node]['obj'])
-            #the actual activation of nodes has been moved to a separate function; this function now only returns nodes to activate
-
-        print(top_nodes)
-        
-        return seeded_set
 
     
-
-#implement better selection algorithm here...
-
-#hill climbing algorithm
-
-#whittle index definition 
-
-#algorithm w/ whittle index
-#might be more challenging -- assume it doesn't depend on neighbors
-#fancy way -- use neural network to parameterize index? whittle index with dependency
-
-#simulate partially observable graph (just change algo to account for only the visible parts)
-#keep belief for the unknown nodes -- use this for algorithm
-#keep a variable belief -- every iteration in the simulation, run code or function with belief as the input and
-#some other neighbors' states as input / output -- gives them new belief
