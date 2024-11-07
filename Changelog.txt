@@ -37,4 +37,12 @@ Week of 10/25:
 DO:
 -try using deep q learning using openai gym (or RLib, which is reinforcement learning with
  many algorithms implemented) (see slack)
+-try to test the problem for larger sizes
+ -find way to save tabular q learning
+-more work on proof
+
+Week of 11/1
+-implemented Policy Network in place of Deep Q learning
+-implemented metrics for large graphs (50+ nodes)
+ -NOTE -- try large graphs with larger action values as well
 
