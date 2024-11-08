@@ -186,7 +186,7 @@ class NetworkSim:
 
     #finds the rewards of a function given seed
     @staticmethod
-    def reward_function(graph, seed):
+    def reward_function(graph, seed, cascade_reward = 0.2):
         #defined by the number of active nodes and active edges that have unactivated nodes at either end
         len_edges = len(NetworkSim.get_exclusive_active_edges(graph, seed))
 
@@ -195,11 +195,11 @@ class NetworkSim:
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']
             # A node is active if it's in the seed or if its object reports it as active
-            if node in seed or node_obj.isActive():
+            if (seed is not None and node in seed) or node_obj.isActive():
                 num_active += 1
 
         #0.2 here is arbitrarily chosen as a placeholder
-        reward = num_active + 0.2 * len_edges  # Sum of active nodes and active edges as the reward
+        reward = num_active + cascade_reward * len_edges  # Sum of active nodes and active edges as the reward
 
         return reward
 
