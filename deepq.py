@@ -135,6 +135,50 @@ class CustomQPolicy(BasePolicy):
         loss = nn.functional.mse_loss(q_values, target_q_values)
         return loss
 
+
+def train_dqn_agent(config, num_actions, num_epochs=50):
+    # Set up environment
+    def get_env():
+        return NetworkInfluenceEnv(config)
+    train_envs = DummyVectorEnv([get_env for _ in range(10)])
+    test_envs = DummyVectorEnv([get_env for _ in range(1)])
+
+    # Instantiate the model and policy
+    state_dim = config['num_nodes']
+    action_dim = config['num_nodes']
+
+    model = QNet(state_dim, action_dim)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
+
+    # Set up collectors
+    train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num))
+    test_collector = Collector(policy, test_envs)
+
+    # Training function
+    def stop_fn(mean_rewards):
+        return mean_rewards >= 50
+
+    # Start training
+    result = OffpolicyTrainer(
+        policy=policy,
+        train_collector=train_collector,
+        test_collector=test_collector,
+        max_epoch=50,
+        step_per_epoch=1000,
+        step_per_collect=10,
+        episode_per_test=10,
+        batch_size=64,
+        update_per_step=0.1,
+        train_fn=train_fn,
+        test_fn=test_fn,
+        stop_fn=stop_fn,
+        logger=None
+    )
+
+    return model, policy
+
+
 # Instantiate the model and policy
 state_dim = num_nodes
 action_dim = num_nodes  # Number of possible actions (nodes)
@@ -184,40 +228,42 @@ result = OffpolicyTrainer(
 model.eval()
 
 # Initialize environment for simulation
-env = NetworkInfluenceEnv(config)
-state, _ = env.reset()
-done = False
 
-# Visualization setup
-pos = nx.spring_layout(G)
-nv.render(env.graph, pos)
 
-while not done:
-    # Convert state to tensor
-    state_tensor = torch.FloatTensor(state).unsqueeze(0)
+# env = NetworkInfluenceEnv(config)
+# state, _ = env.reset()
+# done = False
 
-    # Generate all possible actions
-    actions = torch.eye(action_dim)
-    states = state_tensor.repeat(action_dim, 1)
-    actions_tensor = actions
+# # Visualization setup
+# pos = nx.spring_layout(G)
+# nv.render(env.graph, pos)
 
-    # Compute Q-values
-    with torch.no_grad():
-        q_values = model(states, actions_tensor).squeeze()
+# while not done:
+#     # Convert state to tensor
+#     state_tensor = torch.FloatTensor(state).unsqueeze(0)
 
-    # Select top-k actions
-    topk_q_values, topk_actions = torch.topk(q_values, num_actions)
-    selected_actions = torch.zeros(action_dim)
-    selected_actions[topk_actions] = 1
+#     # Generate all possible actions
+#     actions = torch.eye(action_dim)
+#     states = state_tensor.repeat(action_dim, 1)
+#     actions_tensor = actions
 
-    # Apply selected actions in the environment
-    action = selected_actions.numpy().astype(int)
-    state, reward, done, _, info = env.step(action)
+#     # Compute Q-values
+#     with torch.no_grad():
+#         q_values = model(states, actions_tensor).squeeze()
 
-    # Render the updated graph
-    nv.render(env.graph, pos)
+#     # Select top-k actions
+#     topk_q_values, topk_actions = torch.topk(q_values, num_actions)
+#     selected_actions = torch.zeros(action_dim)
+#     selected_actions[topk_actions] = 1
 
-    print(f"Selected actions: {topk_actions.numpy()}, Reward: {reward}")
-    input()
+#     # Apply selected actions in the environment
+#     action = selected_actions.numpy().astype(int)
+#     state, reward, done, _, info = env.step(action)
 
-print("Simulation completed.")
+#     # Render the updated graph
+#     nv.render(env.graph, pos)
+
+#     print(f"Selected actions: {topk_actions.numpy()}, Reward: {reward}")
+#     input()
+
+# print("Simulation completed.")

@@ -46,3 +46,15 @@ Week of 11/1
 -implemented metrics for large graphs (50+ nodes)
  -NOTE -- try large graphs with larger action values as well
 
+DO:
+-improve hill climbing without bellman equation
+-implement deep-q network with hill climbing
+
+Week of 11/8
+DO: 
+-make reward more complex
+ -for deep q -- give it more look ahead to see if it can outperform hill climbing
+ -give different nodes better reward values
+-test in more resource sparse environments
+-try just dqn, show dqn with hill climbing is better than traditional dqn
+-collect stats -- cumulative activation over time and discounted activiation over time, percentage of time it outperforms x

@@ -9,12 +9,22 @@ import torch
 import random
 import os
 
+from tianshou.policy import BasePolicy
+from tianshou.data import Batch
+import gymnasium as gym
+import torch.nn as nn
+import torch.optim as optim
+from tianshou.data import VectorReplayBuffer
+from tianshou.trainer import OffpolicyTrainer
+
 from networkSim import NetworkSim as ns
 from networkvis import NetworkVis as nv
 from simpleNode import SimpleNode as Node
 from hillClimb import HillClimb
 from network_env import NetworkEnv
 from policy_networks import PolicyNetworkAgent
+from deepq import train_dqn_agent, QNet, CustomQPolicy
+
 
 # Activation chance in passive action
 PASSIVE_ACTIVATION_CHANCE = 0.05
@@ -24,7 +34,7 @@ PASSIVE_DEACTIVATION_CHANCE = 0.3
 ACTIVE_ACTIVATION_CHANCE = 0.95
 ACTIVE_DEACTIVATION_CHANCE = 0.05
 
-CASCADE_PROB = 0.00
+CASCADE_PROB = 0.05
 
 def main():
     # Define the different graph sizes to test
@@ -64,6 +74,7 @@ def main():
         # Copy the graph for each algorithm to ensure they start from the same initial state
         graph_hill_climb = copy.deepcopy(G)
         graph_policy_network = copy.deepcopy(G)
+        graph_dqn_agent = copy.deepcopy(G)
         graph_random_selection = copy.deepcopy(G)
         graph_no_selection = copy.deepcopy(G)
 
@@ -85,9 +96,20 @@ def main():
             policy_agent.train(env, num_episodes=500)
             #NOTE: models are not saved for now
             #policy_agent.save_model(model_path_policy, model_path_value)
+        
+        
+        #DeepQ
+        config = {
+            "graph": graph_dqn_agent,
+            "num_nodes": num_nodes,
+            "cascade_prob": CASCADE_PROB,
+            "stop_percent": 0.8  # Adjust as needed
+        }
+        print("Training DQN agent...")
+        model, policy = train_dqn_agent(config, num_actions)
 
         # Initialize data collection structures
-        algorithms = ['Hill Climb', 'Policy Network', 'Random Selection', 'No Selection']
+        algorithms = ['Hill Climb', 'Policy Network', 'DQN Agent', 'Random Selection', 'No Selection']
         data_collection = {algo: {
             'timestep': [],
             'cumulative_active_nodes': [],
@@ -134,6 +156,38 @@ def main():
             collect_data('Policy Network', graph_policy_network, [graph_policy_network.nodes[node_index]['obj'] for node_index in topk_indices],
                         changed_nodes_pn, newly_activated_pn, cumulative_seeds_used, data_collection, timestep)
 
+            # ----------------- DQN AGENT -----------------
+            # Select action using DQN agent
+            state = np.array([int(graph_dqn_agent.nodes[i]['obj'].isActive()) for i in graph_dqn_agent.nodes()], dtype=np.float32)
+            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            device = state_tensor.device
+
+            # Generate all possible actions
+            actions = torch.eye(num_nodes, device=device)
+            states = state_tensor.repeat(num_nodes, 1)
+            actions_tensor = actions
+
+            # Compute Q-values
+            with torch.no_grad():
+                q_values = model(states, actions_tensor).squeeze()
+
+            # Mask already active nodes
+            active_nodes = [i for i, node in enumerate(graph_dqn_agent.nodes()) if graph_dqn_agent.nodes[node]['obj'].isActive()]
+            q_values_np = q_values.cpu().numpy()
+            q_values_np[active_nodes] = -np.inf  # Assign negative infinity to active nodes
+
+            # Select top-k actions
+            topk_indices = np.argsort(q_values_np)[-num_actions:][::-1]
+
+            # Apply actions and state transitions
+            exempt_nodes = [graph_dqn_agent.nodes[node_index]['obj'] for node_index in topk_indices]
+            ns.passive_state_transition_without_neighbors(graph_dqn_agent, exempt_nodes=exempt_nodes)
+            ns.active_state_transition_graph_indices(graph_dqn_agent, topk_indices)
+            ns.independent_cascade_allNodes(graph_dqn_agent, CASCADE_PROB)
+            ns.rearm_nodes(graph_dqn_agent)
+
+            # Collect data
+            collect_data('DQN Agent', graph_dqn_agent, exempt_nodes, [], [], cumulative_seeds_used, data_collection, timestep)
 
             # ----------------- RANDOM SELECTION -----------------
             # Select action by randomly choosing nodes
