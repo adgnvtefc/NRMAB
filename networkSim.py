@@ -1,10 +1,9 @@
 import networkx as nx
 import random
 from simpleNode import SimpleNode as Node
-import heapq
 import itertools
 import copy
-
+import math
 
 class NetworkSim:
     @staticmethod
@@ -202,6 +201,43 @@ class NetworkSim:
         reward = num_active + cascade_reward * len_edges  # Sum of active nodes and active edges as the reward
 
         return reward
+    
+    #finds the reward of a given state with 1-step lookforward
+    @staticmethod
+    def enhanced_reward_function(graph, seed, action_size, gamma, cascade_reward=0.2, num_samples=100000):
+        current_reward = NetworkSim.reward_function(graph=graph, seed=seed, cascade_reward=cascade_reward)
+        
+        all_nodes = list(graph.nodes())
+        # Ensure we have enough nodes to sample
+        available_nodes = [node for node in all_nodes if not graph.nodes[node]['obj'].isActive()]
+        max_possible_samples = math.comb(len(available_nodes), action_size)
+        actual_samples = min(num_samples, max_possible_samples)
+        
+        if actual_samples == 0:
+            return current_reward  # No possible actions to sample
+        
+        sampled_actions = set()
+        attempts = 0
+        max_attempts = num_samples * 10  # To prevent infinite loops
+        
+        while len(sampled_actions) < actual_samples and attempts < max_attempts:
+            action = tuple(random.sample(available_nodes, action_size))
+            sampled_actions.add(action)
+            attempts += 1
+        
+        future_sum = 0
+        for action in sampled_actions:
+            test_graph = NetworkSim.simulate_next_state(graph=graph, action=action)
+            future_reward = NetworkSim.reward_function(test_graph, seed=None, cascade_reward=cascade_reward)
+            future_sum += future_reward * gamma
+        
+        # Get the average future reward
+        future_sum /= len(sampled_actions)
+
+        return current_reward + future_sum
+
+
+
 
     #defines the value of being in a certain state, denoted as V(s)
     #num is k, the number of nodes to activate in the subsequent action

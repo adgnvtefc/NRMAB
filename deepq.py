@@ -16,38 +16,6 @@ from tianshou.policy import BasePolicy
 from tianshou.trainer import OffpolicyTrainer
 from tianshou.utils.net.common import Net
 
-# Define constants and configuration
-PASSIVE_ACTIVATION_CHANCE = 0.1
-PASSIVE_DEACTIVATION_CHANCE = 0.2
-ACTIVE_ACTIVATION_CHANCE = 0.95
-ACTIVE_DEACTIVATION_CHANCE = 0.05
-CASCADE_PROB = 0.05
-
-num_nodes = 50
-num_actions = 3  # Number of actions to select per timestep
-
-G = ns.init_random_graph(
-    num_nodes,
-    num_nodes * 1.5,
-    PASSIVE_ACTIVATION_CHANCE,
-    PASSIVE_DEACTIVATION_CHANCE,
-    ACTIVE_ACTIVATION_CHANCE,
-    ACTIVE_DEACTIVATION_CHANCE
-)
-
-config = {
-    "graph": G,
-    "num_nodes": num_nodes,
-    "cascade_prob": CASCADE_PROB,
-    "stop_percent": 0.8
-}
-
-# Environment setup
-def get_env():
-    return NetworkInfluenceEnv(config)
-
-train_envs = DummyVectorEnv([get_env for _ in range(10)])
-test_envs = DummyVectorEnv([get_env for _ in range(1)])
 
 # Define the neural network
 class QNet(nn.Module):
@@ -55,13 +23,17 @@ class QNet(nn.Module):
         super(QNet, self).__init__()
         self.fc1 = nn.Linear(state_dim + action_dim, 128)
         self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, 1)  # Output is a scalar Q-value
+        self.fc3 = nn.Linear(128, 128)
+        self.fc4 = nn.Linear(128, 128)
+        self.fc5 = nn.Linear(128, 1)  # Output is a scalar Q-value
 
     def forward(self, state, action, state_shape=None, action_shape=None):
         x = torch.cat([state, action], dim=1)
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
-        q_value = self.fc3(x)
+        x = torch.relu(self.fc3(x))
+        x = torch.relu(self.fc4(x))
+        q_value = self.fc5(x)
         return q_value
 
 # Define the custom policy
@@ -136,12 +108,21 @@ class CustomQPolicy(BasePolicy):
         return loss
 
 
-def train_dqn_agent(config, num_actions, num_epochs=50):
+def train_dqn_agent(config, num_actions, num_epochs=500):
     # Set up environment
     def get_env():
         return NetworkInfluenceEnv(config)
-    train_envs = DummyVectorEnv([get_env for _ in range(10)])
-    test_envs = DummyVectorEnv([get_env for _ in range(1)])
+    
+    train_envs = DummyVectorEnv([get_env for _ in range(50)])
+    test_envs = DummyVectorEnv([get_env for _ in range(10)])
+
+    def stop_fn(mean_rewards):
+        return mean_rewards >= 500000 # Define a suitable threshold for your problem
+
+    def train_fn(epoch, env_step):
+        pass  # You can implement epsilon decay or other training strategies here
+    def test_fn(epoch, env_step):
+        pass
 
     # Instantiate the model and policy
     state_dim = config['num_nodes']
@@ -152,19 +133,15 @@ def train_dqn_agent(config, num_actions, num_epochs=50):
     policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
 
     # Set up collectors
-    train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num))
+    train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=50000 * train_envs.env_num, buffer_num=train_envs.env_num))
     test_collector = Collector(policy, test_envs)
-
-    # Training function
-    def stop_fn(mean_rewards):
-        return mean_rewards >= 50
 
     # Start training
     result = OffpolicyTrainer(
         policy=policy,
         train_collector=train_collector,
         test_collector=test_collector,
-        max_epoch=50,
+        max_epoch=num_epochs,
         step_per_epoch=1000,
         step_per_collect=10,
         episode_per_test=10,
@@ -180,43 +157,43 @@ def train_dqn_agent(config, num_actions, num_epochs=50):
 
 
 # Instantiate the model and policy
-state_dim = num_nodes
-action_dim = num_nodes  # Number of possible actions (nodes)
+# state_dim = num_nodes
+# action_dim = num_nodes  # Number of possible actions (nodes)
 
-model = QNet(state_dim, action_dim)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
+# model = QNet(state_dim, action_dim)
+# optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+# policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
 
-# Set up collectors
-train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num))
-test_collector = Collector(policy, test_envs)
+# # Set up collectors
+# train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num))
+# test_collector = Collector(policy, test_envs)
 
-# Training function
-def stop_fn(mean_rewards):
-    return mean_rewards >= 50  # Define a suitable threshold for your problem
+# # Training function
+# def stop_fn(mean_rewards):
+#     return mean_rewards >= 50  # Define a suitable threshold for your problem
 
-def train_fn(epoch, env_step):
-    pass  # You can implement epsilon decay or other training strategies here
+# def train_fn(epoch, env_step):
+#     pass  # You can implement epsilon decay or other training strategies here
 
-def test_fn(epoch, env_step):
-    pass
+# def test_fn(epoch, env_step):
+#     pass
 
-# Start training
-result = OffpolicyTrainer(
-    policy=policy,
-    train_collector=train_collector,
-    test_collector=test_collector,
-    max_epoch=50,
-    step_per_epoch=1000,
-    step_per_collect=10,
-    episode_per_test=10,
-    batch_size=64,
-    update_per_step=0.1,
-    train_fn=train_fn,
-    test_fn=test_fn,
-    stop_fn=stop_fn,
-    logger=None
-)
+# # Start training
+# result = OffpolicyTrainer(
+#     policy=policy,
+#     train_collector=train_collector,
+#     test_collector=test_collector,
+#     max_epoch=50,
+#     step_per_epoch=1000,
+#     step_per_collect=10,
+#     episode_per_test=10,
+#     batch_size=64,
+#     update_per_step=0.1,
+#     train_fn=train_fn,
+#     test_fn=test_fn,
+#     stop_fn=stop_fn,
+#     logger=None
+# )
 
 # Save the trained model
 #torch.save(model.state_dict(), 'dqn_model.pth')
@@ -225,7 +202,7 @@ result = OffpolicyTrainer(
 
 # Load the trained model (optional, if continuing from above)
 #model.load_state_dict(torch.load('dqn_model.pth'))
-model.eval()
+#model.eval()
 
 # Initialize environment for simulation
 

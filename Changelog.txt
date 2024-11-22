@@ -58,3 +58,20 @@ DO:
 -test in more resource sparse environments
 -try just dqn, show dqn with hill climbing is better than traditional dqn
 -collect stats -- cumulative activation over time and discounted activiation over time, percentage of time it outperforms x
+
+Week of 11/15
+-Removed Policy Network from Comparisons
+-implemented aforementioned stat collecting
+-increased number of layers in deep q network
+-implemented enhanced reward with lookforward
+-implemented comparison with normal vs enhanced reward 
+
+DO: 
+-look at active reward per timestep as well
+-recheck deep q network
+ -implement early restart maybe -- training at beginning more valuable
+-implement double dqn
+-make hill climbing dqn actually hill climbing
+
+Week of 11/22
+-made hill climbing dqn actually hill climbing
