@@ -1,5 +1,3 @@
-# network_env.py
-
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -68,15 +66,19 @@ class NetworkInfluenceEnv(gym.Env):
         return observation, info
 
     def step(self, action):
-        # cur_reward = ns.enhanced_reward_function(
-        #     graph=self.graph,
-        #     seed=None,
-        #     action_size=self.num_actions,
-        #     gamma=self.gamma,
-        #     cascade_reward=self.cascade_prob
-        # )
+        cur_reward = ns.reward_function(
+             graph=self.graph,
+             seed=None,
+             cascade_reward=self.cascade_prob
+        )
 
         action_indices = np.argwhere(action).flatten()
+
+        expected_future_reward = 0
+
+        for _ in range(10):
+            new_graph = ns.simulate_next_state(self.graph, action=action_indices)
+            expected_future_reward += ns.enhanced_reward_function(graph=new_graph, seed=None, action_size=self.num_actions, gamma=self.gamma, cascade_reward=self.cascade_prob)
 
         ns.passive_state_transition_without_neighbors(self.graph, action_indices)
         ns.active_state_transition_graph_indices(self.graph, action_indices)
@@ -86,19 +88,8 @@ class NetworkInfluenceEnv(gym.Env):
         self.state = np.array([
             int(self.graph.nodes[i]['obj'].isActive()) for i in self.graph.nodes()
         ])
-        action_reward = None
-        if self.reward_function == "normal":
-            action_reward = ns.reward_function(graph=self.graph, seed=None, cascade_reward=self.cascade_prob)
-        else:
-            action_reward = ns.enhanced_reward_function(
-                graph=self.graph,
-                seed=None,
-                action_size=self.num_actions,
-                gamma=self.gamma,
-                cascade_reward=self.cascade_prob
-            )
 
-        reward = action_reward
+        reward = cur_reward + self.gamma * (expected_future_reward / 100)
         terminated = (
             sum([self.graph.nodes[i]['obj'].isActive() for i in self.graph.nodes()]) >= self.stop_percent * self.num_nodes
         )

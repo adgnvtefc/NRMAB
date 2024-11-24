@@ -1,26 +1,12 @@
 # comparisons_big_graphs.py
 
-import networkx as nx
-import matplotlib.pyplot as plt
 import numpy as np
 import copy
-import torch
 import random
 
-from tianshou.policy import BasePolicy
-from tianshou.data import Batch
-import gymnasium as gym
-import torch.nn as nn
-import torch.optim as optim
-from tianshou.data import VectorReplayBuffer
-from tianshou.trainer import OffpolicyTrainer
-
 from networkSim import NetworkSim as ns
-from networkvis import NetworkVis as nv
-from simpleNode import SimpleNode as Node
 from hillClimb import HillClimb
-from policy_networks import PolicyNetworkAgent
-from deepq import train_dqn_agent, QNet, CustomQPolicy
+from deepq import train_dqn_agent, select_action_dqn
 
 # Activation chance in passive action
 PASSIVE_ACTIVATION_CHANCE = 0.05
@@ -71,34 +57,34 @@ def main():
         # Copy the graph for each algorithm to ensure they start from the same initial state
         graph_hill_climb = copy.deepcopy(G)
         graph_dqn_normal = copy.deepcopy(G)
-        graph_dqn_enhanced = copy.deepcopy(G)
         graph_random_selection = copy.deepcopy(G)
         graph_no_selection = copy.deepcopy(G)
 
         # ----------------- DQN AGENT WITH NORMAL REWARD FUNCTION -----------------
+        # Set stop_percent based on the number of nodes
+        if num_nodes == 50:
+            stop_percent = 0.8
+        elif num_nodes == 100:
+            stop_percent = 0.5
+        elif num_nodes == 150:
+            stop_percent = 0.3
+        elif num_nodes == 200:
+            stop_percent = 0.25
+        else:
+            stop_percent = 0.5  # Default value if not specified
+
         config_normal = {
             "graph": graph_dqn_normal,
             "num_nodes": num_nodes,
             "cascade_prob": CASCADE_PROB,
-            "stop_percent": 0.8,
+            "stop_percent": stop_percent,
             "reward_function": "normal"
         }
         print("Training DQN agent with normal reward function...")
         model_normal, policy_normal = train_dqn_agent(config_normal, num_actions)
 
-        # ----------------- DQN AGENT WITH ENHANCED REWARD FUNCTION -----------------
-        config_enhanced = {
-            "graph": graph_dqn_enhanced,
-            "num_nodes": num_nodes,
-            "cascade_prob": CASCADE_PROB,
-            "stop_percent": 0.8,
-            "reward_function": "enhanced"
-        }
-        print("Training DQN agent with enhanced reward function...")
-        model_enhanced, policy_enhanced = train_dqn_agent(config_enhanced, num_actions)
-
         # Initialize data collection structures
-        algorithms = ['Hill Climb', 'DQN Normal', 'DQN Enhanced', 'Random Selection', 'No Selection']
+        algorithms = ['Hill Climb', 'DQN Normal', 'Random Selection', 'No Selection']
         data_collection = {algo: {
             'timestep': [],
             'cumulative_active_nodes': [],
@@ -117,9 +103,6 @@ def main():
             'DQN Normal vs Hill Climb': 0,
             'DQN Normal vs Random Selection': 0,
             'DQN Normal vs No Selection': 0,
-            'DQN Enhanced vs Hill Climb': 0,
-            'DQN Enhanced vs Random Selection': 0,
-            'DQN Enhanced vs No Selection': 0
         }
 
         # Set the number of timesteps for the simulation
@@ -158,20 +141,6 @@ def main():
                          cumulative_seeds_used, data_collection, timestep, gamma,
                          cumulative_active_nodes_prev, discounted_activation_prev)
 
-            # ----------------- DQN AGENT WITH ENHANCED REWARD FUNCTION -----------------
-            # Select action using DQN agent trained with enhanced reward function
-            seeded_nodes_dqn_enhanced = select_action_dqn(graph_dqn_enhanced, model_enhanced, num_actions)
-            # Apply actions and state transitions
-            exempt_nodes = seeded_nodes_dqn_enhanced
-            ns.passive_state_transition_without_neighbors(graph_dqn_enhanced, exempt_nodes=exempt_nodes)
-            ns.active_state_transition(seeded_nodes_dqn_enhanced)
-            ns.independent_cascade_allNodes(graph_dqn_enhanced, CASCADE_PROB)
-            ns.rearm_nodes(graph_dqn_enhanced)
-            # Collect data
-            collect_data('DQN Enhanced', graph_dqn_enhanced, seeded_nodes_dqn_enhanced,
-                         cumulative_seeds_used, data_collection, timestep, gamma,
-                         cumulative_active_nodes_prev, discounted_activation_prev)
-
             # ----------------- RANDOM SELECTION -----------------
             # Select action by randomly choosing nodes
             random_nodes_indices = random.sample(range(len(graph_random_selection.nodes())), num_actions)
@@ -200,16 +169,15 @@ def main():
                          cumulative_active_nodes_prev, discounted_activation_prev)
 
             # ---------------- FIND DQN OUTPERFORMANCE ---------------
-            # For both DQN agents
-            for dqn_algo in ['DQN Normal', 'DQN Enhanced']:
-                dqn_percent_activated = data_collection[dqn_algo]['percent_activated'][-1]
+            # DQN agent
+            dqn_percent_activated = data_collection['DQN Normal']['percent_activated'][-1]
 
-                # Compare with other algorithms
-                for other_algo in ['Hill Climb', 'Random Selection', 'No Selection']:
-                    other_percent_activated = data_collection[other_algo]['percent_activated'][-1]
-                    if dqn_percent_activated > other_percent_activated:
-                        key = f'{dqn_algo} vs {other_algo}'
-                        outperformance_counts[key] += 1
+            # Compare with other algorithms
+            for other_algo in ['Hill Climb', 'Random Selection', 'No Selection']:
+                other_percent_activated = data_collection[other_algo]['percent_activated'][-1]
+                if dqn_percent_activated > other_percent_activated:
+                    key = f'DQN Normal vs {other_algo}'
+                    outperformance_counts[key] += 1
 
             # ----------------- PRINT RESULTS -----------------
             # Every update_interval timesteps, print the data
@@ -230,34 +198,6 @@ def main():
 
     # After all graph sizes are processed, create combined plots
     plot_combined_results(overall_data, simulation_params)
-
-def select_action_dqn(graph, model, num_actions):
-    num_nodes = len(graph.nodes())
-    state = np.array([int(graph.nodes[i]['obj'].isActive()) for i in graph.nodes()], dtype=np.float32)
-    state_tensor = torch.FloatTensor(state).unsqueeze(0)
-    device = state_tensor.device
-
-    # Generate all possible actions (one-hot encoded)
-    actions = torch.eye(num_nodes, device=device)
-    states = state_tensor.repeat(num_nodes, 1)
-    actions_tensor = actions
-
-    # Compute Q-values
-    with torch.no_grad():
-        q_values = model(states, actions_tensor).squeeze()
-
-    # Mask already active nodes
-
-    active_nodes_indices = [i for i, node in enumerate(graph.nodes()) if graph.nodes[node]['obj'].isActive()]
-    q_values_np = q_values.cpu().numpy()
-    q_values_np[active_nodes_indices] = -np.inf  # Assign negative infinity to active nodes
-
-    # Select top-k actions
-    topk_indices = np.argsort(q_values_np)[-num_actions:][::-1]
-
-    # Get the node objects for the selected indices
-    seeded_nodes = [graph.nodes[node_index]['obj'] for node_index in topk_indices]
-    return seeded_nodes
 
 def collect_data(algorithm, graph, seeded_nodes, cumulative_seeds_used,
                  data_collection, timestep, gamma,
@@ -448,11 +388,10 @@ def plot_combined_results(overall_data, simulation_params):
 
     # Plot outperformance percentages
     # Create a new figure for outperformance percentages
-    fig2, axes2 = plt.subplots(2, 3, figsize=(18, 12))
+    fig2, axes2 = plt.subplots(1, 3, figsize=(18, 6))
     axes2 = axes2.flatten()
     outperformance_keys = [
-        'DQN Normal vs Hill Climb', 'DQN Normal vs Random Selection', 'DQN Normal vs No Selection',
-        'DQN Enhanced vs Hill Climb', 'DQN Enhanced vs Random Selection', 'DQN Enhanced vs No Selection'
+        'DQN Normal vs Hill Climb', 'DQN Normal vs Random Selection', 'DQN Normal vs No Selection'
     ]
 
     for idx, key in enumerate(outperformance_keys):

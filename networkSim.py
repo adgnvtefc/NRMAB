@@ -204,7 +204,7 @@ class NetworkSim:
     
     #finds the reward of a given state with 1-step lookforward
     @staticmethod
-    def enhanced_reward_function(graph, seed, action_size, gamma, cascade_reward=0.2, num_samples=100000):
+    def enhanced_reward_function(graph, seed, action_size, gamma, cascade_reward=0.2, num_samples=10):
         current_reward = NetworkSim.reward_function(graph=graph, seed=seed, cascade_reward=cascade_reward)
         
         all_nodes = list(graph.nodes())
