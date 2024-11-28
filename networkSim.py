@@ -156,7 +156,7 @@ class NetworkSim:
     @staticmethod
     def generate_possible_actions(graph, num):
         #node that these should be node indices in the graph, not node objects
-        nodes = [node for node in graph.nodes()]
+        nodes = [node for node in graph.nodes() if not graph.nodes[node]['obj'].isActive()]
 
         #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
         return list(itertools.combinations(nodes, num))
@@ -186,8 +186,8 @@ class NetworkSim:
     #finds the rewards of a function given seed
     @staticmethod
     def reward_function(graph, seed, cascade_reward = 0.2):
-        #defined by the number of active nodes and active edges that have unactivated nodes at either end
-        len_edges = len(NetworkSim.get_exclusive_active_edges(graph, seed))
+        #defined by the number of active nodes and active edges that have unactivated nodes at either end (taken out for now)
+        #len_edges = len(NetworkSim.get_exclusive_active_edges(graph, seed))
 
         # Count the number of active nodes
         num_active = 0
@@ -196,9 +196,10 @@ class NetworkSim:
             # A node is active if it's in the seed or if its object reports it as active
             if (seed is not None and node in seed) or node_obj.isActive():
                 num_active += 1
+        
 
-        #0.2 here is arbitrarily chosen as a placeholder
-        reward = num_active + cascade_reward * len_edges  # Sum of active nodes and active edges as the reward
+        reward = num_active
+        # + cascade_reward * len_edges  # Sum of active nodes and active edges as the reward
 
         return reward
     
@@ -264,11 +265,12 @@ class NetworkSim:
 
         #generate tuples of possible actions to take in this state
         possible_actions = NetworkSim.generate_possible_actions(graph, num)
+        sampled_actions = random.sample(possible_actions, min(10, len(possible_actions)))
 
         max_value = float('-inf')
         optimal_action = None
-        for action in possible_actions:
-            value = NetworkSim.action_value_function(graph, action, num, gamma, horizon, max_horizon, num_samples)
+        for action in sampled_actions:
+            value = NetworkSim.action_value_function(graph, action, num=num, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)
             if value > max_value:
                 max_value = value
                 #note that this is INDICES
@@ -288,9 +290,9 @@ class NetworkSim:
     # and take the average reward of each state
     # this explanation does not make much sense, but you will see what i mean
     @staticmethod
-    def action_value_function(graph, action, num, gamma, horizon, max_horizon, num_samples):
+    def action_value_function(graph, action, num=1, cascade_reward = 0.2, gamma=0.99, horizon=3, max_horizon=3, num_samples=10):
         #the rewards for performing the actions specified on the current state
-        immediate_reward = NetworkSim.reward_function(graph, action)
+        immediate_reward = NetworkSim.reward_function(graph, action, cascade_reward=cascade_reward)
 
         # Simulate possible next states and compute expected future value
         total_future_value = 0
@@ -301,13 +303,13 @@ class NetworkSim:
             next_state = NetworkSim.simulate_next_state(graph, action)
 
             future_value = NetworkSim.state_value_function(
-                next_state, num, gamma, horizon, max_horizon, num_samples)[0]
+                next_state, num=num, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)[0]
             total_future_value += future_value
 
         expected_future_value = total_future_value / num_samples
 
         #gamma should change properly now (ex on first of horizon=2, max_horizon = 3, gamma**1, on second, horizon=1, max_horizon = 3, gamma ** 2)
-        total_value = immediate_reward + (gamma ** max_horizon - horizon) * expected_future_value
+        total_value = immediate_reward + (gamma ** (max_horizon - horizon)) * expected_future_value
         return total_value
     
     #helper function to simulate the full next state of the graph

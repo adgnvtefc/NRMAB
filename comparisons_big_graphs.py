@@ -7,6 +7,7 @@ import random
 from networkSim import NetworkSim as ns
 from hillClimb import HillClimb
 from deepq import train_dqn_agent, select_action_dqn
+from doubleq import train_double_dqn_agent, select_action_double_dqn 
 
 # Activation chance in passive action
 PASSIVE_ACTIVATION_CHANCE = 0.05
@@ -57,6 +58,7 @@ def main():
         # Copy the graph for each algorithm to ensure they start from the same initial state
         graph_hill_climb = copy.deepcopy(G)
         graph_dqn_normal = copy.deepcopy(G)
+        graph_double_dqn = copy.deepcopy(G)  # Graph for Double DQN
         graph_random_selection = copy.deepcopy(G)
         graph_no_selection = copy.deepcopy(G)
 
@@ -83,8 +85,19 @@ def main():
         print("Training DQN agent with normal reward function...")
         model_normal, policy_normal = train_dqn_agent(config_normal, num_actions)
 
+        # ----------------- DOUBLE DQN AGENT -----------------
+        config_double_dqn = {
+            "graph": graph_double_dqn,
+            "num_nodes": num_nodes,
+            "cascade_prob": CASCADE_PROB,
+            "stop_percent": stop_percent,
+            "reward_function": "normal"
+        }
+        print("Training Double DQN agent...")
+        model_double_dqn, policy_double_dqn = train_double_dqn_agent(config_double_dqn, num_actions)
+
         # Initialize data collection structures
-        algorithms = ['Hill Climb', 'DQN Normal', 'Random Selection', 'No Selection']
+        algorithms = ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']
         data_collection = {algo: {
             'timestep': [],
             'cumulative_active_nodes': [],
@@ -103,6 +116,9 @@ def main():
             'DQN Normal vs Hill Climb': 0,
             'DQN Normal vs Random Selection': 0,
             'DQN Normal vs No Selection': 0,
+            'Double DQN vs Hill Climb': 0,
+            'Double DQN vs Random Selection': 0,
+            'Double DQN vs No Selection': 0,
         }
 
         # Set the number of timesteps for the simulation
@@ -141,6 +157,20 @@ def main():
                          cumulative_seeds_used, data_collection, timestep, gamma,
                          cumulative_active_nodes_prev, discounted_activation_prev)
 
+            # ----------------- DOUBLE DQN AGENT -----------------
+            # Select action using Double DQN agent
+            seeded_nodes_double_dqn = select_action_double_dqn(graph_double_dqn, model_double_dqn, num_actions)
+            # Apply actions and state transitions
+            exempt_nodes = seeded_nodes_double_dqn
+            ns.passive_state_transition_without_neighbors(graph_double_dqn, exempt_nodes=exempt_nodes)
+            ns.active_state_transition(seeded_nodes_double_dqn)
+            ns.independent_cascade_allNodes(graph_double_dqn, CASCADE_PROB)
+            ns.rearm_nodes(graph_double_dqn)
+            # Collect data
+            collect_data('Double DQN', graph_double_dqn, seeded_nodes_double_dqn,
+                         cumulative_seeds_used, data_collection, timestep, gamma,
+                         cumulative_active_nodes_prev, discounted_activation_prev)
+
             # ----------------- RANDOM SELECTION -----------------
             # Select action by randomly choosing nodes
             random_nodes_indices = random.sample(range(len(graph_random_selection.nodes())), num_actions)
@@ -169,15 +199,16 @@ def main():
                          cumulative_active_nodes_prev, discounted_activation_prev)
 
             # ---------------- FIND DQN OUTPERFORMANCE ---------------
-            # DQN agent
-            dqn_percent_activated = data_collection['DQN Normal']['percent_activated'][-1]
+            # For both DQN agents
+            for dqn_algo in ['DQN Normal', 'Double DQN']:
+                dqn_percent_activated = data_collection[dqn_algo]['percent_activated'][-1]
 
-            # Compare with other algorithms
-            for other_algo in ['Hill Climb', 'Random Selection', 'No Selection']:
-                other_percent_activated = data_collection[other_algo]['percent_activated'][-1]
-                if dqn_percent_activated > other_percent_activated:
-                    key = f'DQN Normal vs {other_algo}'
-                    outperformance_counts[key] += 1
+                # Compare with other algorithms
+                for other_algo in ['Hill Climb', 'Random Selection', 'No Selection']:
+                    other_percent_activated = data_collection[other_algo]['percent_activated'][-1]
+                    if dqn_percent_activated > other_percent_activated:
+                        key = f'{dqn_algo} vs {other_algo}'
+                        outperformance_counts[key] += 1
 
             # ----------------- PRINT RESULTS -----------------
             # Every update_interval timesteps, print the data
@@ -388,10 +419,11 @@ def plot_combined_results(overall_data, simulation_params):
 
     # Plot outperformance percentages
     # Create a new figure for outperformance percentages
-    fig2, axes2 = plt.subplots(1, 3, figsize=(18, 6))
+    fig2, axes2 = plt.subplots(2, 3, figsize=(24, 12))  # Adjusted for more comparisons
     axes2 = axes2.flatten()
     outperformance_keys = [
-        'DQN Normal vs Hill Climb', 'DQN Normal vs Random Selection', 'DQN Normal vs No Selection'
+        'DQN Normal vs Hill Climb', 'DQN Normal vs Random Selection', 'DQN Normal vs No Selection',
+        'Double DQN vs Hill Climb', 'Double DQN vs Random Selection', 'Double DQN vs No Selection'
     ]
 
     for idx, key in enumerate(outperformance_keys):
@@ -400,16 +432,20 @@ def plot_combined_results(overall_data, simulation_params):
         percentages = []
         for (num_nodes, num_edges), data in overall_data.items():
             outperformance_percentages = data['outperformance_percentages']
-            percentage = outperformance_percentages[key]
+            percentage = outperformance_percentages.get(key, 0)  # Default to 0 if key not found
             graph_labels.append(f"{num_nodes} nodes")
             percentages.append(percentage)
-        ax.bar(graph_labels, percentages)
+        ax.bar(graph_labels, percentages, color='skyblue')
         ax.set_xlabel('Graph Size')
         ax.set_ylabel('Outperformance Percentage (%)')
         ax.set_title(f'{key}')
         for i, v in enumerate(percentages):
             ax.text(i, v + 1, f"{v:.2f}%", color='blue', ha='center')
         ax.set_ylim(0, 100)  # Assuming percentages range from 0 to 100
+
+    # Hide any unused subplots
+    for idx in range(len(outperformance_keys), len(axes2)):
+        fig2.delaxes(axes2[idx])
 
     # Adjust layout to prevent overlap
     fig2.tight_layout()
