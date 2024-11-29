@@ -10,7 +10,7 @@ import os  # Added to check for model file existence
 from networkSim import NetworkSim as ns
 from networkvis import NetworkVis as nv
 from tabularbellman import TabularBellman as tb
-from deepQLearning import NeuralQLearner
+from policy_network_helper import NeuralQLearner
 from simpleNode import SimpleNode as Node
 from hillClimb import HillClimb  # Import the HillClimb class
 

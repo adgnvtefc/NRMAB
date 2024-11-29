@@ -45,3 +45,14 @@ class NetworkVis:
 
         # Wait for user input to proceed to the next step
         input("Press Enter to proceed to the next timestep...")
+    
+    @staticmethod
+    def render(G, graph_pos):
+        node_color_map = ns.color_nodes(G)
+        edge_color_map = ns.color_edges(G)
+
+        # Draw the updated graph
+        nx.draw(G, graph_pos, with_labels=True, node_color=node_color_map, edge_color=edge_color_map, node_size=800, font_color='white')
+
+        # Show the graph
+        plt.show(block=False)

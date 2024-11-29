@@ -37,4 +37,82 @@ Week of 10/25:
 DO:
 -try using deep q learning using openai gym (or RLib, which is reinforcement learning with
  many algorithms implemented) (see slack)
+-try to test the problem for larger sizes
+ -find way to save tabular q learning
+-more work on proof
 
+Week of 11/1
+-implemented Policy Network in place of Deep Q learning
+-implemented metrics for large graphs (50+ nodes)
+ -NOTE -- try large graphs with larger action values as well
+
+DO:
+-improve hill climbing without bellman equation
+-implement deep-q network with hill climbing
+
+Week of 11/8
+DO: 
+-make reward more complex
+ -for deep q -- give it more look ahead to see if it can outperform hill climbing
+ -give different nodes better reward values
+-test in more resource sparse environments
+-try just dqn, show dqn with hill climbing is better than traditional dqn
+-collect stats -- cumulative activation over time and discounted activiation over time, percentage of time it outperforms x
+
+Week of 11/15
+-Removed Policy Network from Comparisons
+-implemented aforementioned stat collecting
+-increased number of layers in deep q network
+-implemented enhanced reward with lookforward
+-implemented comparison with normal vs enhanced reward 
+
+DO: 
+-look at active reward per timestep as well
+-recheck deep q network
+ -implement early restart maybe -- training at beginning more valuable
+-implement double dqn
+-make hill climbing dqn actually hill climbing
+
+Week of 11/22
+-made hill climbing dqn actually hill climbing
+-tweaked reward function to closer align with bellman's equation
+ -dqn_normal now behaves the exact same as dqn_enhanced
+-implement epsilon greedy in DQN
+-fixed DQN
+-implemented double qn -- need to put into big comparisons
+
+
+Proof -- X active, Y passive, Z edge cascade
+-summarize the Kempe proof
+-given the realization that x, y, z and nodes that you pick, you can directly know which nodes are activated
+ at the end of the cascade step -- function of A, X, Y, Z, and see that this set function is submodular
+-then put the values
+
+
+Paper
+-Model -- Networked RMAB
+-Abstract
+-Intro
+ -background on the RMAB
+ -background on independent cascade
+ -the novelty -- how to properly formulate the network effect in restless multi-armed bandits
+-Related Works
+ -talk about prior work, did not talk about this more difficult structure
+-Problem Statement -- network, cascade, RMAB, mathematical formulation
+ -notation -- where we define the 3 steps
+-Methodology -- algorithmic implementation, bellman equation, challenges
+ -motivate the challenge -- solving bellman equation itself is too difficult
+ -incorporate Hill Climbing into DQN
+ -talk about submodularity, proof of submodularity
+ -because reward function in DQN is bellman's, submodularity of bellman extends algorithmic guarantee to 
+  hill climbing
+-Experiments
+ -Hill climbing -- submodular function -- baseline comparison
+-Analysis
+-Discussion
+-Conclusion
+
+
+-page limit -- 4 - 8 pages
+
+Graph Network For DQN?
