@@ -8,7 +8,7 @@ import multiprocessing as mp
 from networkSim import NetworkSim as ns
 from hillClimb import HillClimb
 from deepq import train_dqn_agent, select_action_dqn
-from doubleq import train_double_dqn_agent, select_action_double_dqn
+from whittle import WhittleIndexPolicy  # Import Whittle policy
 
 import matplotlib.pyplot as plt
 from collections import defaultdict
@@ -47,16 +47,7 @@ def collect_data_single_simulation(algorithm, graph, seeded_nodes, simulation_da
     # Update cumulative seeds used
     simulation_data[algorithm]['cumulative_seeds_used'] += len(seeded_nodes)
 
-    # Calculate percentage of network activated (current timestep)
-    percent_activated = (active_nodes / total_nodes) * 100
-
-    # Activation Efficiency
-    if simulation_data[algorithm]['cumulative_seeds_used'] > 0:
-        activation_efficiency = active_nodes / simulation_data[algorithm]['cumulative_seeds_used']
-    else:
-        activation_efficiency = 0
-
-    # Discounted activation
+    # Discounted activation (not currently printed, but stored)
     simulation_data[algorithm]['discounted_activation_prev'] = (
         simulation_data[algorithm]['discounted_activation_prev'] * gamma + active_nodes
     )
@@ -65,7 +56,7 @@ def collect_data_single_simulation(algorithm, graph, seeded_nodes, simulation_da
     simulation_data[algorithm]['active_nodes_over_time'].append(active_nodes)
     simulation_data[algorithm]['active_node_values_over_time'].append(active_node_values)
 
-def run_single_simulation(initial_graph, num_actions, model_normal, model_double_dqn, gamma):
+def run_single_simulation(initial_graph, num_actions, model_normal, whittle_policy, gamma):
     """
     Runs a single simulation applying all algorithms to separate copies of the initial graph.
     Returns the active nodes and node values over time for each algorithm.
@@ -73,19 +64,18 @@ def run_single_simulation(initial_graph, num_actions, model_normal, model_double
     # Initialize fresh copies of the graph for each algorithm
     graph_hc = copy.deepcopy(initial_graph)
     graph_dqn_normal = copy.deepcopy(initial_graph)
-    graph_double_dqn = copy.deepcopy(initial_graph)
-    graph_random_selection = copy.deepcopy(initial_graph)
-    graph_no_selection = copy.deepcopy(initial_graph)
+    graph_whittle = copy.deepcopy(initial_graph)
 
-    # Initialize data structures for this simulation
-    algorithms = ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']
+    # Add Whittle to the algorithms
+    algorithms = ['Hill Climb', 'DQN Normal', 'Whittle']
+
     simulation_data = {algo: {
         'cumulative_seeds_used': 0,
         'cumulative_active_nodes': 0,
-        'cumulative_node_values': 0,  # New field for node value sums
+        'cumulative_node_values': 0,
         'discounted_activation_prev': 0,
         'active_nodes_over_time': [],
-        'active_node_values_over_time': []  # New field for node value sums over time
+        'active_node_values_over_time': []
     } for algo in algorithms}
 
     for timestep in range(1, NUM_TIMESTEPS + 1):
@@ -119,46 +109,21 @@ def run_single_simulation(initial_graph, num_actions, model_normal, model_double
             gamma
         )
 
-        # ----------------- DOUBLE DQN -----------------
-        seeded_nodes_double_dqn = select_action_double_dqn(graph_double_dqn, model_double_dqn, num_actions)
-        ns.passive_state_transition_without_neighbors(graph_double_dqn, exempt_nodes=seeded_nodes_double_dqn)
-        ns.active_state_transition(seeded_nodes_double_dqn)
-        ns.independent_cascade_allNodes(graph_double_dqn, CASCADE_PROB)
-        ns.rearm_nodes(graph_double_dqn)
-        collect_data_single_simulation(
-            'Double DQN',
-            graph_double_dqn,
-            seeded_nodes_double_dqn,
-            simulation_data,
-            timestep,
-            gamma
-        )
+        # ----------------- WHITTLE -----------------
+        # Compute Whittle indices for current states
+        current_states_whittle = {node: int(graph_whittle.nodes[node]['obj'].isActive()) for node in graph_whittle.nodes()}
+        whittle_indices = whittle_policy.compute_whittle_indices(current_states_whittle)
+        seeded_nodes_whittle_ids = whittle_policy.select_top_k(whittle_indices, num_actions)
+        seeded_nodes_whittle = [graph_whittle.nodes[node_id]['obj'] for node_id in seeded_nodes_whittle_ids]
 
-        # ----------------- RANDOM SELECTION -----------------
-        random_nodes_indices = random.sample(range(len(graph_random_selection.nodes())), num_actions)
-        seeded_nodes_random = [graph_random_selection.nodes[node_index]['obj'] for node_index in random_nodes_indices]
-        ns.passive_state_transition_without_neighbors(graph_random_selection, exempt_nodes=seeded_nodes_random)
-        ns.active_state_transition(seeded_nodes_random)
-        ns.independent_cascade_allNodes(graph_random_selection, CASCADE_PROB)
-        ns.rearm_nodes(graph_random_selection)
+        ns.passive_state_transition_without_neighbors(graph_whittle, exempt_nodes=seeded_nodes_whittle)
+        ns.active_state_transition(seeded_nodes_whittle)
+        ns.independent_cascade_allNodes(graph_whittle, CASCADE_PROB)
+        ns.rearm_nodes(graph_whittle)
         collect_data_single_simulation(
-            'Random Selection',
-            graph_random_selection,
-            seeded_nodes_random,
-            simulation_data,
-            timestep,
-            gamma
-        )
-
-        # ----------------- NO SELECTION -----------------
-        seeded_nodes_none = []
-        ns.passive_state_transition_without_neighbors(graph_no_selection, exempt_nodes=[])
-        ns.independent_cascade_allNodes(graph_no_selection, CASCADE_PROB)
-        ns.rearm_nodes(graph_no_selection)
-        collect_data_single_simulation(
-            'No Selection',
-            graph_no_selection,
-            seeded_nodes_none,
+            'Whittle',
+            graph_whittle,
+            seeded_nodes_whittle,
             simulation_data,
             timestep,
             gamma
@@ -174,10 +139,9 @@ def run_simulations_for_graph_size(graph_size, num_actions, num_simulations, gam
     """
     Trains agents for a given graph size and runs multiple simulations.
     Returns aggregated outperformance percentages, individual simulation results, and performance metrics.
-    Compares both active node percentages and sum of node values.
+    Focus on DQN vs Hill Climb and DQN vs Whittle comparisons.
     """
     num_nodes, num_edges = graph_size
-    print(graph_size)
     print(f"\n=== Running simulations for Graph with {num_nodes} nodes and {num_edges} edges ===\n")
 
     # Initialize the initial graph
@@ -185,13 +149,13 @@ def run_simulations_for_graph_size(graph_size, num_actions, num_simulations, gam
         num_nodes,
         num_edges,
         1,
-        100
+        10
     )
 
     # Determine stop_percent based on number of nodes
     stop_percent = determine_stop_percent(num_nodes)
 
-    # ----------------- DQN AGENT WITH NORMAL REWARD FUNCTION -----------------
+    # Train DQN normal agent
     config_normal = {
         "graph": copy.deepcopy(initial_graph),
         "num_nodes": num_nodes,
@@ -202,104 +166,110 @@ def run_simulations_for_graph_size(graph_size, num_actions, num_simulations, gam
     print("Training DQN agent with normal reward function...")
     model_normal, policy_normal = train_dqn_agent(config_normal, num_actions)
 
-    # ----------------- DOUBLE DQN AGENT -----------------
-    config_double_dqn = {
-        "graph": copy.deepcopy(initial_graph),
-        "num_nodes": num_nodes,
-        "cascade_prob": CASCADE_PROB,
-        "stop_percent": stop_percent,
-        "reward_function": "normal"
-    }
-    print("Training Double DQN agent...")
-    model_double_dqn, policy_double_dqn = train_double_dqn_agent(config_double_dqn, num_actions)
+    # Prepare Whittle policy data
+    # Extract transitions and node values from initial_graph
+    transitions_whittle = {}
+    node_values = {}
+    for node_id in initial_graph.nodes():
+        node_obj = initial_graph.nodes[node_id]['obj']
+        # Construct the transition matrix
+        # States: 0 - Passive, 1 - Active
+        # Actions: 0 - Passive action, 1 - Active action
+        transition_matrix = np.zeros((2, 2, 2))  # (s, a, next_s)
 
-    # Initialize outperformance counts for this graph size
-    # Keys: 'DQN Normal vs Hill Climb', 'Double DQN vs Hill Climb', etc.
-    outperformance_counts_nodes = defaultdict(int)       # For percentage of nodes
-    outperformance_counts_values = defaultdict(int)      # For sum of node values
+        # From Passive state (s=0)
+        # Action Passive (a=0)
+        transition_matrix[0, 0, 1] = node_obj.passive_activation_passive
+        transition_matrix[0, 0, 0] = 1 - node_obj.passive_activation_passive
 
-    # Initialize a list to store individual simulation results for this graph size
+        # Action Active (a=1)
+        transition_matrix[0, 1, 1] = node_obj.passive_activation_active
+        transition_matrix[0, 1, 0] = 1 - node_obj.passive_activation_active
+
+        # From Active state (s=1)
+        # Action Passive (a=0)
+        transition_matrix[1, 0, 1] = node_obj.active_activation_passive
+        transition_matrix[1, 0, 0] = 1 - node_obj.active_activation_passive
+
+        # Action Active (a=1)
+        transition_matrix[1, 1, 1] = node_obj.active_activation_active
+        transition_matrix[1, 1, 0] = 1 - node_obj.active_activation_active
+
+        transitions_whittle[node_id] = transition_matrix
+        node_values[node_id] = node_obj.getValue()
+
+    whittle_policy = WhittleIndexPolicy(
+        transitions=transitions_whittle,
+        node_values=node_values,
+        discount=gamma,
+        subsidy_break=0.0,
+        eps=1e-4
+    )
+
+    # Outperformance counters
+    outperformance_counts_nodes = defaultdict(int)
+    outperformance_counts_values = defaultdict(int)
+
+    # Initialize results storage
     individual_simulation_results = []
 
-    # Initialize storage for active nodes and node values over all simulations for this graph size
-    # Structure: {algo: [ [sim1_t1, sim1_t2, ...], ... ], ... }
-    all_active_nodes = {algo: [] for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']}
-    all_node_values = {algo: [] for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']}
+    # Algorithms we track: 'Hill Climb', 'DQN Normal', 'Whittle'
+    all_active_nodes = {algo: [] for algo in ['Hill Climb', 'DQN Normal', 'Whittle']}
+    all_node_values = {algo: [] for algo in ['Hill Climb', 'DQN Normal', 'Whittle']}
 
-    # Run simulations
     for sim in range(1, num_simulations + 1):
         if sim % UPDATE_INTERVAL == 0 or sim == 1:
             print(f"Starting simulation {sim}/{num_simulations}...")
-        final_active_nodes, final_node_values = run_single_simulation(initial_graph, num_actions, model_normal, model_double_dqn, gamma)
+        final_active_nodes, final_node_values = run_single_simulation(initial_graph, num_actions, model_normal, whittle_policy, gamma)
 
-        # Store active nodes and node values for aggregate metrics
         for algo in all_active_nodes:
             all_active_nodes[algo].append(final_active_nodes[algo])
             all_node_values[algo].append(final_node_values[algo])
 
-        # Compare active nodes and node values at each timestep across all simulations
+        # Perform comparisons: DQN Normal vs Hill Climb and DQN Normal vs Whittle
         for timestep in range(NUM_TIMESTEPS):
-            # Retrieve active node counts and node values for each algorithm at this timestep
             try:
                 hc_active = final_active_nodes['Hill Climb'][timestep]
                 hc_value = final_node_values['Hill Climb'][timestep]
-                
-                dqn_normal_active = final_active_nodes['DQN Normal'][timestep]
-                dqn_normal_value = final_node_values['DQN Normal'][timestep]
-                
-                double_dqn_active = final_active_nodes['Double DQN'][timestep]
-                double_dqn_value = final_node_values['Double DQN'][timestep]
-                
-                # Similarly, retrieve for Random Selection and No Selection if needed
-                # random_selection_active = final_active_nodes['Random Selection'][timestep]
-                # random_selection_value = final_node_values['Random Selection'][timestep]
-                
+
+                dqn_active = final_active_nodes['DQN Normal'][timestep]
+                dqn_value = final_node_values['DQN Normal'][timestep]
+
+                wh_active = final_active_nodes['Whittle'][timestep]
+                wh_value = final_node_values['Whittle'][timestep]
             except IndexError:
-                # Handle cases where a simulation might have fewer timesteps
                 continue
 
-            # Compare DQN Normal vs Hill Climb for active nodes
-            if dqn_normal_active > hc_active:
+            # DQN vs Hill Climb (Active nodes)
+            if dqn_active > hc_active:
                 outperformance_counts_nodes['DQN Normal vs Hill Climb'] += 1
-            elif dqn_normal_active < hc_active:
-                outperformance_counts_nodes['Hill Climb vs DQN Normal'] += 1
-            # Similarly, you can handle ties or other comparisons if needed
 
-            # Compare DQN Normal vs Hill Climb for node values
-            if dqn_normal_value > hc_value:
+            # DQN vs Hill Climb (Node values)
+            if dqn_value > hc_value:
                 outperformance_counts_values['DQN Normal vs Hill Climb'] += 1
-            elif dqn_normal_value < hc_value:
-                outperformance_counts_values['Hill Climb vs DQN Normal'] += 1
 
-            # Compare Double DQN vs Hill Climb for active nodes
-            if double_dqn_active > hc_active:
-                outperformance_counts_nodes['Double DQN vs Hill Climb'] += 1
-            elif double_dqn_active < hc_active:
-                outperformance_counts_nodes['Hill Climb vs Double DQN'] += 1
+            # DQN vs Whittle (Active nodes)
+            if dqn_active > wh_active:
+                outperformance_counts_nodes['DQN Normal vs Whittle'] += 1
 
-            # Compare Double DQN vs Hill Climb for node values
-            if double_dqn_value > hc_value:
-                outperformance_counts_values['Double DQN vs Hill Climb'] += 1
-            elif double_dqn_value < hc_value:
-                outperformance_counts_values['Hill Climb vs Double DQN'] += 1
+            # DQN vs Whittle (Node values)
+            if dqn_value > wh_value:
+                outperformance_counts_values['DQN Normal vs Whittle'] += 1
 
-            # Additional comparisons can be added here (e.g., against Random Selection)
-
-        # Optionally, you can also record final activation percentages and node values for additional analyses
+        # Record final percent and values for each simulation
         final_percent = calculate_final_percent_activated(final_active_nodes, num_nodes, NUM_TIMESTEPS)
-        final_value = calculate_final_node_values(final_node_values, num_timesteps=NUM_TIMESTEPS)
+        final_val = calculate_final_node_values(final_node_values, num_timesteps=NUM_TIMESTEPS)
         simulation_result = {'Simulation': sim}
-        for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']:
+        for algo in ['Hill Climb', 'DQN Normal', 'Whittle']:
             simulation_result[f'{algo}_Percent'] = final_percent.get(algo, 0)
-            simulation_result[f'{algo}_Value'] = final_value.get(algo, 0)
+            simulation_result[f'{algo}_Value'] = final_val.get(algo, 0)
         individual_simulation_results.append(simulation_result)
 
-    # Calculate outperformance percentages for this graph size
     total_comparisons = num_simulations * NUM_TIMESTEPS
     outperformance_percentages_nodes = {key: (count / total_comparisons) * 100 for key, count in outperformance_counts_nodes.items()}
     outperformance_percentages_values = {key: (count / total_comparisons) * 100 for key, count in outperformance_counts_values.items()}
 
-    # Aggregate performance metrics for this graph size
+    # Performance metrics
     performance_metrics_nodes = analyze_performance(all_active_nodes)
     performance_metrics_values = analyze_performance_node_values(all_node_values)
 
@@ -312,7 +282,6 @@ def run_simulations_for_graph_size(graph_size, num_actions, num_simulations, gam
     for key, percentage in outperformance_percentages_values.items():
         print(f"{key}: {percentage:.2f}%")
 
-    # Store results in the overall data structures
     return {
         'outperformance_nodes': outperformance_percentages_nodes,
         'outperformance_values': outperformance_percentages_values
@@ -325,6 +294,8 @@ def determine_stop_percent(num_nodes):
     """
     Determines the stop_percent based on the number of nodes.
     """
+    if num_nodes > 450:
+        return 0.15
     if num_nodes == 50:
         return 0.5
     elif num_nodes == 100:
@@ -334,7 +305,7 @@ def determine_stop_percent(num_nodes):
     elif num_nodes == 200:
         return 0.25
     else:
-        return 0.25  # Default value if not specified
+        return 0.25  # Default
 
 def calculate_final_percent_activated(final_active_nodes, num_nodes, num_timesteps):
     """
@@ -342,7 +313,6 @@ def calculate_final_percent_activated(final_active_nodes, num_nodes, num_timeste
     """
     final_percent_activated = {}
     for algo, active_nodes_over_time in final_active_nodes.items():
-        # Sum active nodes across all timesteps and normalize
         total_active = sum(active_nodes_over_time)
         max_possible = num_nodes * num_timesteps
         percent = (total_active / max_possible) * 100
@@ -355,7 +325,6 @@ def calculate_final_node_values(final_node_values, num_timesteps):
     """
     final_node_sum = {}
     for algo, node_values_over_time in final_node_values.items():
-        # Sum node values across all timesteps
         total_value = sum(node_values_over_time)
         final_node_sum[algo] = total_value
     return final_node_sum
@@ -373,9 +342,7 @@ def analyze_performance(all_active_nodes, thresholds=[25, 50, 75, 90]):
     """
     performance_metrics = {}
     for algo, simulations in all_active_nodes.items():
-        # Convert list of active node lists to numpy array for easier manipulation
-        # Shape: [num_simulations, num_timesteps]
-        active_nodes_matrix = np.array(simulations)  # Each simulation has a list of active nodes per timestep
+        active_nodes_matrix = np.array(simulations)  # Shape: [num_simulations, num_timesteps]
         
         # Mean and Standard Deviation per timestep
         mean_active = active_nodes_matrix.mean(axis=0)  # Shape: [num_timesteps]
@@ -436,7 +403,6 @@ def analyze_performance_node_values(all_node_values, thresholds=[25, 50, 75, 90]
     """
     performance_metrics = {}
     for algo, simulations in all_node_values.items():
-        # Convert list of node value sums to numpy array
         node_values_array = np.array(simulations)  # Shape: [num_simulations, num_timesteps]
         
         # Mean and Standard Deviation per timestep
@@ -512,6 +478,16 @@ def save_individual_results(all_individual_results, output_dir='simulation_resul
         
         print(f"Saved individual simulation results for graph size {graph_size} to {filepath}")
 
+def create_directory(directory):
+    """
+    Creates a directory if it does not exist.
+    
+    Args:
+        directory (str): Path to the directory.
+    """
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
 def plot_aggregated_results(overall_outperformance, performance_metrics, graph_sizes, output_dir='plots'):
     """
     Plots aggregated results and saves them to files.
@@ -525,7 +501,6 @@ def plot_aggregated_results(overall_outperformance, performance_metrics, graph_s
     # Ensure the output directory exists
     create_directory(output_dir)
 
-    # For each graph size, create a figure with subplots
     for graph_size in graph_sizes:
         num_nodes, num_edges = graph_size
         fig, axes = plt.subplots(2, 2, figsize=(15, 10))
@@ -552,7 +527,7 @@ def plot_aggregated_results(overall_outperformance, performance_metrics, graph_s
         axes[0, 1].tick_params(axis='x', rotation=45)
 
         # Mean Activation Percentage Over Time
-        for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']:
+        for algo in ['Hill Climb', 'DQN Normal', 'Whittle']:
             mean_active = performance_metrics[graph_size]['nodes'][algo]['mean_active_per_timestep']
             mean_percent = (mean_active / num_nodes) * 100
             axes[1, 0].plot(range(1, NUM_TIMESTEPS + 1), mean_percent, label=algo)
@@ -563,7 +538,7 @@ def plot_aggregated_results(overall_outperformance, performance_metrics, graph_s
         axes[1, 0].grid(True)
 
         # Mean Node Values Over Time
-        for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']:
+        for algo in ['Hill Climb', 'DQN Normal', 'Whittle']:
             mean_values = performance_metrics[graph_size]['values'][algo]['mean_value_per_timestep']
             axes[1, 1].plot(range(1, NUM_TIMESTEPS + 1), mean_values, label=algo)
         axes[1, 1].set_title('Mean Node Values Over Time')
@@ -596,12 +571,14 @@ def plot_individual_results(all_individual_results, output_dir='plots'):
         df = pd.DataFrame(results)
         
         # Melt the DataFrame for seaborn (Percentage)
-        df_percent = df.melt(id_vars=['Simulation'], value_vars=[f'{algo}_Percent' for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']], 
+        df_percent = df.melt(id_vars=['Simulation'], 
+                             value_vars=[f'{algo}_Percent' for algo in ['Hill Climb', 'DQN Normal', 'Whittle']],
                              var_name='Algorithm', value_name='Percent Activated')
         df_percent['Algorithm'] = df_percent['Algorithm'].str.replace('_Percent', '')
         
         # Melt the DataFrame for seaborn (Node Values)
-        df_values = df.melt(id_vars=['Simulation'], value_vars=[f'{algo}_Value' for algo in ['Hill Climb', 'DQN Normal', 'Double DQN', 'Random Selection', 'No Selection']], 
+        df_values = df.melt(id_vars=['Simulation'], 
+                            value_vars=[f'{algo}_Value' for algo in ['Hill Climb', 'DQN Normal', 'Whittle']],
                             var_name='Algorithm', value_name='Node Values')
         df_values['Algorithm'] = df_values['Algorithm'].str.replace('_Value', '')
 
@@ -632,79 +609,13 @@ def plot_individual_results(all_individual_results, output_dir='plots'):
         plt.close(fig)
         print(f"Saved individual simulation plots for graph size {graph_size} to {filepath}")
 
-def create_directory(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-def analyze_performance_node_values(all_node_values, thresholds=[25, 50, 75, 90]):
-    """
-    Analyzes performance metrics for node values across all simulations for a given graph size.
-    
-    Args:
-        all_node_values (dict): Dictionary mapping algorithms to lists of node value sums over simulations.
-        thresholds (list): Thresholds for node value sums as percentages.
-    
-    Returns:
-        dict: Performance metrics for each algorithm.
-    """
-    performance_metrics = {}
-    for algo, simulations in all_node_values.items():
-        # Convert list of node value sums to numpy array
-        node_values_array = np.array(simulations)  # Shape: [num_simulations, num_timesteps]
-        
-        # Mean and Standard Deviation per timestep
-        mean_values = node_values_array.mean(axis=0)  # Shape: [num_timesteps]
-        std_values = node_values_array.std(axis=0)
-        
-        # AUAC per simulation, then average
-        auac_per_simulation = np.trapz(node_values_array, axis=1)  # Shape: [num_simulations]
-        mean_auac = auac_per_simulation.mean()
-        
-        # Time to reach thresholds
-        time_to_threshold = {}
-        for threshold in thresholds:
-            # Define target per simulation
-            target = (threshold / 100.0) * node_values_array.max(axis=1)
-            times = []
-            for sim in range(node_values_array.shape[0]):
-                reached = np.where(node_values_array[sim] >= target[sim])[0]
-                if len(reached) > 0:
-                    timestep_reached = reached[0] + 1  # +1 for 1-based timestep
-                else:
-                    timestep_reached = NUM_TIMESTEPS + 1  # Assign a value beyond the last timestep
-                times.append(timestep_reached)
-            mean_time = np.nanmean(times)
-            time_to_threshold[threshold] = mean_time
-        
-        # Probability of reaching thresholds
-        prob_reach_threshold = {}
-        for threshold in thresholds:
-            count = np.sum(node_values_array[:, -1] >= (threshold / 100.0 * node_values_array.max(axis=1)))
-            prob = (count / node_values_array.shape[0]) * 100
-            prob_reach_threshold[threshold] = prob
-        
-        # Coefficient of Variation (CV) for AUAC
-        cv = auac_per_simulation.std() / auac_per_simulation.mean() if auac_per_simulation.mean() != 0 else np.nan
-        
-        # Store metrics
-        performance_metrics[algo] = {
-            'mean_value_per_timestep': mean_values,
-            'std_value_per_timestep': std_values,
-            'auac': mean_auac,
-            'time_to_threshold': time_to_threshold,
-            'prob_reach_threshold': prob_reach_threshold,
-            'coefficient_of_variation': cv
-        }
-    
-    return performance_metrics
-
 def main():
     # Define the different graph sizes to test
     graph_sizes = [
-        (250, 250),
-        (400, 400),
-        (500, 500),
-        (750, 750)
+        # (50, 50),
+        # (100, 100),
+        # (150, 150),
+        (200, 200)
     ]
 
     num_actions = 10  # Number of nodes to activate per timestep
@@ -734,7 +645,7 @@ def main():
         all_individual_results[graph_size] = individual_results
         all_performance_metrics[graph_size] = performance_metrics
 
-    plot_output_dir = 'plots_fixed_hillclimb'
+    plot_output_dir = 'plots_value_whittle'
 
     # Save individual simulation results to CSV files
     save_individual_results(all_individual_results)

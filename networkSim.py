@@ -13,10 +13,12 @@ class NetworkSim:
         for i in range(num):
             # Define ranges for transition probabilities
             # Active actions have better transition probabilities
-            active_activation_active_action = round(random.uniform(0.9, 1.0), 4)
-            active_activation_passive_action = round(random.uniform(0.0, active_activation_active_action), 4)
 
-            passive_activation_active_action = round(random.uniform(0.0, 0.5), 4)
+            #ensure active nodes don't deactivate too often
+            active_activation_active_action = round(random.uniform(0.8, 1.0), 4)
+            active_activation_passive_action = round(random.uniform(0.7, active_activation_active_action), 4)
+
+            passive_activation_active_action = round(random.uniform(0.5, 1.0), 4)
             passive_activation_passive_action = round(random.uniform(0.0, passive_activation_active_action), 4)
 
             # Generate a random value within the specified range
@@ -93,6 +95,8 @@ class NetworkSim:
     @staticmethod
     def passive_state_transition_without_neighbors(graph, exempt_nodes = None):
         changed = set()
+        if exempt_nodes is None:
+            exempt_nodes = set()
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']  # Get the SimpleNode object
             if node_obj in exempt_nodes:
@@ -337,7 +341,7 @@ class NetworkSim:
         #0.1 is a placeholder. more advanced functionality will be implemented *eventually*
         NetworkSim.independent_cascade_allNodes(new_graph, 0.1)
 
-        NetworkSim.rearm_nodes(graph)
+        NetworkSim.rearm_nodes(new_graph)
 
         # Update edge activations (i dont think you actually need this function)
         NetworkSim.determine_edge_activation(new_graph)
