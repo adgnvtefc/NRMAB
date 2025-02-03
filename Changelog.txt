@@ -116,3 +116,29 @@ Paper
 -page limit -- 4 - 8 pages
 
 Graph Network For DQN?
+
+check cumulative reward (take this over outperformance)
+check average reward (timestep on x, average on y) -- mean node values over time, make the difference larger
+
+try precalculating the whittle indices
+
+three plots in parallel showing different number of nodes and edges
+
+show exhaustive search -- plot for smaller graph where we can run tabular q learning and show how accurate the submodular maximization is
+-show tabular outperform dqn for smaller graph
+-show difference between dqn and tabular q learning per timestep
+
+
+3 graphs
+
+
+comparison with tabular q and everything -- very small -- 10 nodes 2 actions -- run like 10/100 simulations
+
+second plot -- comparison 500 / 1000 nodes
+
+third plot -- use a real network (but for now, try 2000 / 5000)
+
+300 / 800 nodes is done with values 1-3
+325 / 900 are done with values 1-2
+others are 1-10
+

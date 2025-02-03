@@ -10,7 +10,7 @@ import random
 import torch
 import torch.nn as nn
 import numpy as np
-from tianshou.env import SubprocVectorEnv, DummyVectorEnv
+from tianshou.env import DummyVectorEnv
 from tianshou.data import Collector, VectorReplayBuffer, Batch
 from tianshou.policy import BasePolicy
 from tianshou.trainer import OffpolicyTrainer
@@ -80,6 +80,8 @@ class CustomQPolicy(BasePolicy):
                 available_indices = (state_i == 0).nonzero(as_tuple=False).squeeze().tolist()
                 if not available_indices:
                     break  # No more available nodes to select
+                if type(available_indices) == int:
+                    available_indices = [available_indices]
 
                 # Generate actions for available nodes
                 actions_list = []
@@ -156,6 +158,9 @@ class CustomQPolicy(BasePolicy):
                 if not available_indices:
                     max_q_value = 0.0
                 else:
+                    if type(available_indices) == int:
+                        available_indices = [available_indices]
+
                     actions_list = []
                     for idx in available_indices:
                         action = torch.zeros(self.action_dim, device=next_state.device)

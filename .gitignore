@@ -4,6 +4,9 @@
 *.pyd
 __pycache__/
 
+#Less Relevant Files 
+OTHER/
+
 # Virtual environment
 .venv/
 env/

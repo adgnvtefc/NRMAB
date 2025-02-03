@@ -1,9 +1,10 @@
 # dqn_simulation.py
-
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import copy
 import random
-import os
 import matplotlib.pyplot as plt
 import networkx as nx
 import torch

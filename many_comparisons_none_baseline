@@ -1,0 +1,146 @@
+# many_comparisons_no_selection.py
+
+import numpy as np
+import copy
+import matplotlib.pyplot as plt
+import os
+import pandas as pd
+import seaborn as sns
+
+from networkSim import NetworkSim as ns
+
+# Parameters
+NUM_SIMULATIONS = 100  # Number of simulations per graph size
+NUM_TIMESTEPS = 15     # Number of timesteps per simulation
+UPDATE_INTERVAL = 10   # Interval to print progress
+CASCADE_PROB = 0.1
+NUM_ACTIONS = 10
+GAMMA = 0.99  # Not used now, but kept for consistency
+
+def determine_stop_percent(num_nodes):
+    """
+    Determines the stop_percent based on the number of nodes.
+    This is not heavily utilized since we are not training policies here,
+    but we keep it for consistency.
+    """
+    if num_nodes > 2000:
+        return 0.05
+    if num_nodes > 450:
+        return 0.15
+    if num_nodes == 50:
+        return 0.5
+    elif num_nodes == 100:
+        return 0.5
+    elif num_nodes == 150:
+        return 0.3
+    elif num_nodes == 200:
+        return 0.25
+    else:
+        return 0.25  # Default
+
+def run_single_simulation(initial_graph):
+    """
+    Runs a single simulation with no-selection at each timestep.
+    Returns an array of rewards per timestep.
+    """
+    graph_none = copy.deepcopy(initial_graph)
+    rewards_none = []
+
+    for t in range(NUM_TIMESTEPS):
+        # No Selection: do nothing, no nodes chosen
+        ns.passive_state_transition_without_neighbors(graph_none, exempt_nodes=set())
+        # No active transitions since no nodes chosen
+        ns.independent_cascade_allNodes(graph_none, CASCADE_PROB)
+        ns.rearm_nodes(graph_none)
+        reward_none = ns.reward_function(
+            graph_none, set([node for node in graph_none.nodes() if graph_none.nodes[node]['obj'].isActive()])
+        )
+        rewards_none.append(reward_none)
+
+    return np.array(rewards_none)
+
+def run_simulations_for_graph_size(graph_size, num_simulations):
+    """
+    For a given graph size, run multiple simulations with no selection.
+    Collects rewards and computes mean/cumulative rewards.
+    """
+    num_nodes, num_edges = graph_size
+    print(f"\n=== Running simulations for Graph with {num_nodes} nodes and {num_edges} edges (No Selection) ===\n")
+
+    # Initialize the graph
+    initial_graph = ns.init_random_graph(num_nodes, num_edges, 1, 10)
+    stop_percent = determine_stop_percent(num_nodes)
+
+    # Run simulations and record rewards
+    all_rewards_none = []
+
+    for sim in range(1, num_simulations + 1):
+        if sim % UPDATE_INTERVAL == 0 or sim == 1:
+            print(f"Starting simulation {sim}/{num_simulations}...")
+        r_none = run_single_simulation(initial_graph)
+        all_rewards_none.append(r_none)
+
+    # Convert to arrays
+    all_rewards_none = np.array(all_rewards_none)  # shape [num_simulations, num_timesteps]
+
+    # Compute mean rewards per timestep
+    mean_rewards_none = all_rewards_none.mean(axis=0)
+
+    # Compute cumulative rewards
+    cum_rewards_none = np.cumsum(mean_rewards_none)
+
+    # Save results to CSV
+    output_dir = 'no_selection_only'
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    plots = {
+        'Timestep': range(1, NUM_TIMESTEPS + 1),
+        'NoSelection_mean_reward': mean_rewards_none,
+        'NoSelection_cum_reward': cum_rewards_none
+    }
+    df = pd.DataFrame(plots)
+    filename = f'no_selection_{num_nodes}nodes_{num_edges}edges.csv'
+    df.to_csv(os.path.join(output_dir, filename), index=False)
+
+    # Plot mean rewards
+    plt.figure(figsize=(12,6))
+    plt.plot(range(1, NUM_TIMESTEPS+1), mean_rewards_none, label='No Selection Mean Reward')
+    plt.xlabel('Timestep')
+    plt.ylabel('Mean Reward')
+    plt.title('Mean Reward per Timestep (No Selection)')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(output_dir, f'mean_reward_no_selection_{num_nodes}nodes_{num_edges}edges.png'))
+    plt.close()
+
+    # Plot cumulative rewards
+    plt.figure(figsize=(12,6))
+    plt.plot(range(1, NUM_TIMESTEPS+1), cum_rewards_none, label='No Selection Cumulative Reward')
+    plt.xlabel('Timestep')
+    plt.ylabel('Cumulative Reward')
+    plt.title('Cumulative Reward per Timestep (No Selection)')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(output_dir, f'cum_reward_no_selection_{num_nodes}nodes_{num_edges}edges.png'))
+    plt.close()
+
+    print("Finished. Results saved to 'no_selection_only' directory.")
+
+def main():
+    # Define the graph sizes to test
+    graph_sizes = [
+        (15, 45)
+        #(300, 300),
+        #(900, 1800),
+        #(2500, 5000)
+    ]
+
+    for graph_size in graph_sizes:
+        run_simulations_for_graph_size(
+            graph_size,
+            NUM_SIMULATIONS
+        )
+
+if __name__ == "__main__":
+    main()

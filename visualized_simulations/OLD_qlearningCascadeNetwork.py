@@ -1,3 +1,4 @@
+#OLD, DOES NOT WORK WITHOUT MODERNIZATION
 from networkSim import NetworkSim as ns
 import networkx as nx
 import matplotlib.pyplot as plt

@@ -6,7 +6,7 @@ from networkSim import NetworkSim as ns
 import numpy as np
 from math import comb
 from tqdm import tqdm
-
+import random
 
 #how the Q table works:
 #each entry in the table represents the Q value -- the action value function, in a particular state
@@ -36,63 +36,65 @@ class TabularBellman:
 
     
     #implememted using expected reward for each state
-    def update_q_table(self, num_iterations=1, num_samples=5):
-        with tqdm(total=num_iterations, desc="Training Q-table", unit="iteration") as outer_pbar:
-            for iteration in range(num_iterations):
-                # Create a progress bar for the states within each iteration
-                with tqdm(total=self.num_states, desc=f"Updating states for iteration {iteration + 1}/{num_iterations}", unit="state", leave=False) as pbar:
-                    for state_index in range(self.num_states):
-                        graph = self.get_graph_from_state(state_index)
-                        for action_index, action in enumerate(self.all_action_combinations):
-                            total_future_value = 0
-                            reward_total = 0
-                            for _ in range(num_samples):
-                                next_graph = copy.deepcopy(graph)
+    def update_q_table(self, num_episodes=1, steps_per_episode = 100, epsilon = 0.1):
+        with tqdm(total=num_episodes, desc="Training Q-table", unit="iteration") as outer_pbar:
+            for episode in range(num_episodes):
+                # Start from a random state (you could choose a fixed one if desired)
+                state_index = random.randrange(self.num_states)
 
-                                # Apply the action to the graph
-                                #CHANGE: Take into account activation probabilities
-                                for node_index in action:
-                                    next_graph.nodes[node_index]['obj'].activate()
+                # Inner loop for steps within an episode
+                with tqdm(total=steps_per_episode, desc=f"Episode {episode+1}/{num_episodes}", unit="step", leave=False) as pbar:
+                    for step in range(steps_per_episode):
+                        # Epsilon-greedy action selection
+                        if random.random() < epsilon:
+                            action_index = random.randrange(self.num_actions_total)
+                        else:
+                            action_index = np.argmax(self.qtable[state_index])
 
-                                # Exempt nodes that were just activated
-                                exempt_nodes = {next_graph.nodes[node_index]['obj'] for node_index in action}
+                        action = self.all_action_combinations[action_index]
 
-                                # Simulate transitions
-                                ns.passive_state_transition_without_neighbors(next_graph, exempt_nodes)
-                                ns.active_state_transition_graph_indices(next_graph, action)
-                                ns.independent_cascade_allNodes(next_graph, 0.05)
-                                ns.rearm_nodes(next_graph)
+                        # Simulate one step in the environment
+                        next_graph, reward = self.simulate_step(state_index, action)
 
-                                # Calculate the next state index
-                                next_state_index = self.calculate_state_table_pos(next_graph)
+                        # Determine next state
+                        next_state_index = self.calculate_state_table_pos(next_graph)
 
-                                # Compute the reward for this sample
-                                reward = self.get_reward(next_graph, action)
+                        # Q-learning update
+                        best_next_Q = np.max(self.qtable[next_state_index])
+                        current_Q = self.qtable[state_index, action_index]
+                        self.qtable[state_index, action_index] = current_Q + self.alpha * (reward + self.gamma * best_next_Q - current_Q)
 
-                                # Get max_future_q
-                                max_future_q = np.max(self.qtable[next_state_index])
+                        # Move to next state
+                        state_index = next_state_index
 
-                                total_future_value += max_future_q
-                                reward_total += reward
-
-                            # Compute the expected future value and expected reward
-                            expected_future_value = total_future_value / num_samples
-                            expected_reward = reward_total / num_samples
-
-                            # Current Q-value
-                            current_q = self.qtable[state_index, action_index]
-
-                            # Q-learning update
-                            new_q = (1 - self.alpha) * current_q + self.alpha * (expected_reward + self.gamma * expected_future_value)
-                            self.qtable[state_index, action_index] = new_q
-
-                        # Update the progress bar after processing each state
+                        # Update step progress
                         pbar.update(1)
 
-                # Update the outer progress bar after each iteration
+                # Update episode progress
                 outer_pbar.update(1)
     
-    #NOTE: When the graph is almost filled up, this algorithm often displays suboptimal behavior
+    def simulate_step(self, state_index, action):
+        """
+        Simulate one step given a state (via state_index) and an action.
+        Returns:
+            next_graph: graph after applying the action and transitions
+            reward: the observed reward from this transition
+        """
+        graph = self.get_graph_from_state(state_index)
+
+        # Activate chosen nodes
+        action_nodes = [graph.nodes[node_idx]['obj'] for node_idx in action]
+
+        # Exempt nodes that were just activated
+        exempt_nodes = set(action_nodes)
+        ns.passive_state_transition_without_neighbors(graph, exempt_nodes)
+        ns.active_state_transition(action_nodes)
+        ns.independent_cascade_allNodes(graph, 0.1)
+        ns.rearm_nodes(graph)
+
+        reward = ns.reward_function(graph, set(action))
+        return graph, reward
+    
     def get_best_action(self, graph):
         state_index = self.calculate_state_table_pos(graph)
 
