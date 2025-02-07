@@ -1,7 +1,7 @@
 from networkSim import NetworkSim as ns
 import networkx as nx
 import matplotlib.pyplot as plt
-from hillClimb import HillClimb as hc
+from algorithms.hillClimb import HillClimb as hc
 
 #activation chance in passive action
 PASSIVE_ACTIVATION_CHANCE = 0.1

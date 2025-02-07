@@ -6,10 +6,38 @@ import copy
 import math
 
 class NetworkSim:
-    @staticmethod
-    def generate_random_nodes(num, passive_activation_chance, passive_deactivation_chance, active_activation_change, active_deactivation_chance):
-        return {i: {"obj": Node(passive_activation_chance, passive_deactivation_chance, active_activation_change, active_deactivation_chance)} for i in range(num)}
+    @staticmethod    
+    def generate_random_nodes(num, value_low, value_high):
+        
+        nodes = {}
+        for i in range(num):
+            # Define ranges for transition probabilities
+            # Active actions have better transition probabilities
 
+            #ensure active nodes don't deactivate too often
+            active_activation_active_action = round(random.uniform(0.8, 1.0), 4)
+            active_activation_passive_action = round(random.uniform(0.7, active_activation_active_action), 4)
+
+            passive_activation_active_action = round(random.uniform(0.5, 1.0), 4)
+            passive_activation_passive_action = round(random.uniform(0.0, passive_activation_active_action), 4)
+
+            # Generate a random value within the specified range
+            node_value = random.randint(value_low, value_high)
+
+            # Instantiate the SimpleNode with generated probabilities and value
+            node = Node(
+                active_activation_active_action=active_activation_active_action,
+                active_activation_passive_action=active_activation_passive_action,
+                passive_activation_active_action=passive_activation_active_action,
+                passive_activation_passive_action=passive_activation_passive_action,
+                value=node_value
+            )
+
+            # Add the node to the dictionary
+            nodes[i] = {"obj": node}
+
+        return nodes
+    
     @staticmethod
     def generate_random_edges(num, graph):
         edges = set()
@@ -57,9 +85,9 @@ class NetworkSim:
         return ['blue' if graph.edges[edge]['active'] else 'gray' for edge in graph.edges()]
 
     @staticmethod
-    def init_random_graph(num_nodes, num_edges, activation_chance, deactivation_chance, active_activation_chance, active_deactivation_chance):
+    def init_random_graph(num_nodes, num_edges, value_low, value_high):
         G = nx.Graph()
-        G.add_nodes_from(NetworkSim.generate_random_nodes(num_nodes, activation_chance, deactivation_chance, active_activation_chance, active_deactivation_chance).items())
+        G.add_nodes_from(NetworkSim.generate_random_nodes(num_nodes, value_low, value_high).items())
         G.add_edges_from(NetworkSim.generate_random_edges(num_edges, G))
         return G
 
@@ -67,18 +95,16 @@ class NetworkSim:
     @staticmethod
     def passive_state_transition_without_neighbors(graph, exempt_nodes = None):
         changed = set()
+        if exempt_nodes is None:
+            exempt_nodes = set()
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']  # Get the SimpleNode object
             if node_obj in exempt_nodes:
                 continue
-            if node_obj.isActive():
-                if random.random() < node_obj.getPassiveDeactivationChance():
-                    graph.nodes[node]['obj'].deactivate()
-                    changed.add(node_obj)
-            else:
-                if random.random() < node_obj.getPassiveActivationChance():
-                    graph.nodes[node]['obj'].activate()
-                    changed.add(node_obj)
+            original_state = node_obj.isActive()
+            new_state = node_obj.transition(action=False)
+            if new_state != original_state:
+                changed.add(node_obj)
         return changed
     
     #note that nodes is a list of nodes here
@@ -86,14 +112,10 @@ class NetworkSim:
     def active_state_transition(nodes):
         changed = set()
         for node in nodes:
-            if node.isActive():
-                if random.random() < node.getActiveDeactivationChance():
-                    node.deactivate()
-                    changed.add(node)
-            else:
-                if random.random() < node.getActiveActivationChance():
-                    node.activate()
-                    changed.add(node)
+            original_state = node.isActive()
+            new_state = node.transition(action=True)
+            if new_state != original_state:
+                changed.add(node)
         return changed
     
     #same as above, but takes list of indices of a graph
@@ -102,14 +124,10 @@ class NetworkSim:
         changed = set()
         for index in node_indices:
             node = graph.nodes[index]['obj']
-            if node.isActive():
-                if random.random() < node.getActiveDeactivationChance():
-                    node.deactivate()
-                    changed.add(node)
-            else:
-                if random.random() < node.getActiveActivationChance():
-                    node.activate()
-                    changed.add(node)
+            original_state = node.isActive()
+            new_state = node.transition(action=True)
+            if new_state != original_state:
+                changed.add(node)
         return changed
 
 
@@ -185,23 +203,19 @@ class NetworkSim:
 
     #finds the rewards of a function given seed
     @staticmethod
-    def reward_function(graph, seed, cascade_reward = 0.2):
+    def reward_function(graph, seed, cascade_reward = None):
         #defined by the number of active nodes and active edges that have unactivated nodes at either end (taken out for now)
         #len_edges = len(NetworkSim.get_exclusive_active_edges(graph, seed))
 
         # Count the number of active nodes
-        num_active = 0
+        value = 0
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']
             # A node is active if it's in the seed or if its object reports it as active
             if (seed is not None and node in seed) or node_obj.isActive():
-                num_active += 1
+                value += node_obj.getValue()
         
-
-        reward = num_active
-        # + cascade_reward * len_edges  # Sum of active nodes and active edges as the reward
-
-        return reward
+        return value
     
     #finds the reward of a given state with 1-step lookforward
     @staticmethod
@@ -327,7 +341,7 @@ class NetworkSim:
         #0.1 is a placeholder. more advanced functionality will be implemented *eventually*
         NetworkSim.independent_cascade_allNodes(new_graph, 0.1)
 
-        NetworkSim.rearm_nodes(graph)
+        NetworkSim.rearm_nodes(new_graph)
 
         # Update edge activations (i dont think you actually need this function)
         NetworkSim.determine_edge_activation(new_graph)

@@ -2,7 +2,7 @@
 
 import gymnasium as gym
 import tianshou as ts
-from deep_q_env import NetworkInfluenceEnv
+from algorithms.deep_q_env import NetworkInfluenceEnv
 from networkSim import NetworkSim as ns
 from networkvis import NetworkVis as nv
 import networkx as nx
@@ -18,13 +18,14 @@ from tianshou.utils.net.common import Net
 from torch.utils.tensorboard import SummaryWriter
 from tianshou.utils import TensorboardLogger
 import os
-from tianshou.utils import LazyLogger
 from dataclasses import dataclass
 from typing import Dict
+import matplotlib.pyplot as plt
 
-log_path = os.path.join('logs', 'dqn')
+# Set up TensorBoard logger
+log_path = os.path.join('logs', 'double_dqn')
 writer = SummaryWriter(log_path)
-writer.add_text("Experiment Info", "DQN training with custom environment")
+writer.add_text("Experiment Info", "Double DQN training with custom environment")
 logger = TensorboardLogger(writer)
 
 # Define the neural network
@@ -37,7 +38,7 @@ class QNet(nn.Module):
         self.fc4 = nn.Linear(128, 128)
         self.fc5 = nn.Linear(128, 1)  # Output is a scalar Q-value
 
-    def forward(self, state, action, state_shape=None, action_shape=None):
+    def forward(self, state, action):
         x = torch.cat([state, action], dim=1)
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
@@ -46,16 +47,18 @@ class QNet(nn.Module):
         q_value = self.fc5(x)
         return q_value
 
-# Define the custom policy
-class CustomQPolicy(BasePolicy):
-    def __init__(self, model, optim, action_dim, k=5, gamma=0.99, epsilon=1.0):
+# Define the custom policy with Double DQN
+class CustomDoubleDQNPolicy(BasePolicy):
+    def __init__(self, model, target_model, optim, action_dim, k=5, gamma=0.99, epsilon=1.0, tau=0.005):
         super().__init__(action_space=gym.spaces.MultiBinary(action_dim))
         self.model = model
+        self.target_model = target_model
         self.optim = optim
         self.k = k
         self.action_dim = action_dim
         self._gamma = gamma
         self.epsilon = epsilon  # Epsilon for epsilon-greedy exploration
+        self.tau = tau  # Soft update parameter
 
     def forward(self, batch, state=None):
         obs = batch.obs  # Shape: [batch_size, state_dim]
@@ -77,7 +80,7 @@ class CustomQPolicy(BasePolicy):
 
             for _ in range(self.k):
                 # Identify available nodes (not active and not already selected)
-                available_indices = (state_i == 0).nonzero(as_tuple=False).squeeze().tolist()
+                available_indices = (state_i == 0).nonzero(as_tuple=False).flatten().tolist()
                 if not available_indices:
                     break  # No more available nodes to select
 
@@ -135,8 +138,11 @@ class CustomQPolicy(BasePolicy):
         loss.backward()
         self.optim.step()
 
-        return TrainStepResult(loss=loss.item())
+        # Soft update of target network
+        for target_param, param in zip(self.target_model.parameters(), self.model.parameters()):
+            target_param.data.copy_(target_param.data * (1.0 - self.tau) + param.data * self.tau)
 
+        return TrainStepResult(loss=loss.item())
 
     def compute_loss(self, states, actions, rewards, next_states, dones):
         gamma = self._gamma
@@ -147,15 +153,16 @@ class CustomQPolicy(BasePolicy):
 
         q_values = self.model(states, actions).squeeze()
 
-        # Compute target Q-values
+        # Compute target Q-values using Double DQN
         with torch.no_grad():
             next_q_values = []
             for i in range(next_states.shape[0]):
                 next_state = next_states[i]
-                available_indices = (next_state == 0).nonzero(as_tuple=False).squeeze().tolist()
+                available_indices = (next_state == 0).nonzero(as_tuple=False).flatten().tolist()
                 if not available_indices:
                     max_q_value = 0.0
                 else:
+                    # Main network selects the action
                     actions_list = []
                     for idx in available_indices:
                         action = torch.zeros(self.action_dim, device=next_state.device)
@@ -163,8 +170,12 @@ class CustomQPolicy(BasePolicy):
                         actions_list.append(action)
                     actions_tensor = torch.stack(actions_list)
                     states_tensor = next_state.unsqueeze(0).repeat(len(available_indices), 1)
-                    q_vals = self.model(states_tensor, actions_tensor).squeeze()
-                    max_q_value = q_vals.max().item()
+                    q_vals_main = self.model(states_tensor, actions_tensor).squeeze()
+                    best_action_index = torch.argmax(q_vals_main).item()
+                    best_action = actions_tensor[best_action_index].unsqueeze(0)
+                    best_state = states_tensor[best_action_index].unsqueeze(0)
+                    # Target network evaluates the Q-value
+                    max_q_value = self.target_model(best_state, best_action).item()
                 next_q_values.append(max_q_value)
             next_q_values = torch.tensor(next_q_values, device=states.device)
 
@@ -173,6 +184,7 @@ class CustomQPolicy(BasePolicy):
         loss = nn.functional.mse_loss(q_values, target_q_values)
         return loss
 
+
 @dataclass
 class TrainStepResult:
     loss: float
@@ -180,8 +192,7 @@ class TrainStepResult:
     def get_loss_stats_dict(self) -> Dict[str, float]:
         return {'loss': self.loss}
 
-
-def train_dqn_agent(config, num_actions, num_epochs=3):
+def train_double_dqn_agent(config, num_actions, num_epochs=3):
     # Set up environment
     def get_env():
         return NetworkInfluenceEnv(config)
@@ -190,11 +201,12 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
     test_envs = DummyVectorEnv([get_env for _ in range(1)])
 
     def stop_fn(mean_rewards):
-        return mean_rewards >= 500000 # Define a suitable threshold for your problem
+        return mean_rewards >= 500000  # Define a suitable threshold for your problem
 
     def train_fn(epoch, env_step):
         epsilon = max(0.1, 1 - env_step / 100_000)  # Linear decay
         policy.epsilon = epsilon
+
     def test_fn(epoch, env_step):
         pass
 
@@ -203,11 +215,26 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
     action_dim = config['num_nodes']
 
     model = QNet(state_dim, action_dim)
+    target_model = QNet(state_dim, action_dim)
+    target_model.load_state_dict(model.state_dict())  # Initialize target model
+
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
-    policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
+    policy = CustomDoubleDQNPolicy(
+        model,
+        target_model,
+        optimizer,
+        action_dim=action_dim,
+        k=num_actions,
+        gamma=0.99,
+        tau=0.005  # Soft update parameter
+    )
 
     # Set up collectors
-    train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num))
+    train_collector = Collector(
+        policy,
+        train_envs,
+        VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num)
+    )
     test_collector = Collector(policy, test_envs)
 
     # Start training
@@ -229,9 +256,9 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
 
     return model, policy
 
-def select_action_dqn(graph, model, num_actions):
+def select_action_double_dqn(graph, model, num_actions):
     """
-    Hill-climbing action selection using a DQN model.
+    Hill-climbing action selection using a Double DQN model.
     
     Args:
         graph: The graph representing the environment.
@@ -250,30 +277,33 @@ def select_action_dqn(graph, model, num_actions):
         # Prepare the state tensor
         state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
 
-        # Generate all possible actions (one-hot encoded)
-        actions = torch.eye(num_nodes, device=device)
-        states = state_tensor.repeat(num_nodes, 1)
-        actions_tensor = actions
+        # Identify available nodes
+        available_indices = [i for i in range(num_nodes) if state[i] == 0]
+
+        if not available_indices:
+            break  # No more nodes to select
+
+        # Generate possible actions
+        actions_list = []
+        for idx in available_indices:
+            action = torch.zeros(num_nodes, device=device)
+            action[idx] = 1
+            actions_list.append(action)
+        actions_tensor = torch.stack(actions_list)
+        states_tensor = state_tensor.repeat(len(available_indices), 1)
 
         # Compute Q-values
         with torch.no_grad():
-            q_values = model(states, actions_tensor).squeeze()
+            q_values = model(states_tensor, actions_tensor).squeeze()
 
-        # Mask already active nodes and previously selected actions
-        active_nodes_indices = [i for i, node in enumerate(graph.nodes()) if graph.nodes[node]['obj'].isActive()]
-        already_selected_indices = [node for node in selected_node_indices]
-        mask_indices = active_nodes_indices + already_selected_indices
+        # Select the action with the highest Q-value
+        selected_idx = torch.argmax(q_values).item()
+        selected_node = available_indices[selected_idx]
+        selected_node_indices.append(selected_node)
 
-        q_values_np = q_values.cpu().numpy()
-        q_values_np[mask_indices] = -np.inf  # Assign negative infinity to already active or selected nodes
+        # Update the state to reflect the selected action
+        state[selected_node] = 1
 
-        # Select the top action
-        top_action_index = np.argmax(q_values_np)
-        selected_node_indices.append(top_action_index)
-
-        # Update the state to assume the selected action is now active
-        state[top_action_index] = 1
-    
     seeded_nodes = [graph.nodes[node_index]['obj'] for node_index in selected_node_indices]
 
     return seeded_nodes

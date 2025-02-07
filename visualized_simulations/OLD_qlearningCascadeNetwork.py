@@ -1,7 +1,8 @@
+#OLD, DOES NOT WORK WITHOUT MODERNIZATION
 from networkSim import NetworkSim as ns
 import networkx as nx
 import matplotlib.pyplot as plt
-from tabularbellman import TabularBellman as tb
+from algorithms.tabularbellman import TabularBellman as tb
 from networkvis import NetworkVis as nv
 
 #activation chance in passive action

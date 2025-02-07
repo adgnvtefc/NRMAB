@@ -1,76 +1,225 @@
+import copy
+from algorithms.hillClimb import HillClimb
+from algorithms.deepq import train_dqn_agent, select_action_dqn
+from algorithms.whittle import WhittleIndexPolicy
+from algorithms.tabularbellman import TabularBellman 
 from networkSim import NetworkSim as ns
 import networkx as nx
-import matplotlib.pyplot as plt
-from tabularbellman import TabularBellman as tb
-from networkvis import NetworkVis as nv
-import copy
+import numpy as np
 import random
 
-from hillClimb import HillClimb
+#Module used to compare the results of running different algorithms and saving to csv file
+class Comparisons:
 
-#activation chance in passive action
-PASSIVE_ACTIVATION_CHANCE = 0.1
-#deactivation chance in passive action
-PASSIVE_DEACTIVATION_CHANCE = 0.3
+    def run_single_hillclimb(common_metadata, data_collection, models=None):
+        graph_hill_climb = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range(1, common_metadata['timesteps'] + 1):
+            seeded_nodes_hc = HillClimb.hill_climb(graph_hill_climb, num=common_metadata['num_actions'])
+            ns.passive_state_transition_without_neighbors(graph_hill_climb, exempt_nodes=seeded_nodes_hc)
+            ns.active_state_transition([node for node in seeded_nodes_hc])
+            ns.independent_cascade_allNodes(graph_hill_climb, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_hill_climb)
 
-ACTIVE_ACTIVATION_CHANCE = 0.95
-ACTIVE_DEACTIVATION_CHANCE = 0.05
+            Comparisons.collect_data('hillclimb', graph_hill_climb, data_collection, timestep)
+        return True
+    
+    #NOTE: DQN STILL BREAKS ON SMALL GRAPHS WHERE U CAN FILL OUT THE WHOLE GRAPH    
+    def run_single_dqn(common_metadata, data_collection, models=None): 
+        graph_single_dqn = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range(1, common_metadata['timesteps'] + 1):
+            seeded_nodes_dqn = select_action_dqn(graph_single_dqn, model=models['dqn'], num_actions=common_metadata['num_actions'])
+            ns.passive_state_transition_without_neighbors(graph_single_dqn, exempt_nodes=seeded_nodes_dqn)
+            ns.active_state_transition([node for node in seeded_nodes_dqn])
+            ns.independent_cascade_allNodes(graph_single_dqn, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_single_dqn)
 
-#sets up singular graph for comparison
-G = ns.init_random_graph(10, 20, PASSIVE_ACTIVATION_CHANCE, PASSIVE_DEACTIVATION_CHANCE, ACTIVE_ACTIVATION_CHANCE, ACTIVE_DEACTIVATION_CHANCE)
-node_obj_to_id = {data['obj']: node_id for node_id, data in G.nodes(data=True)}
+            Comparisons.collect_data('dqn', graph_single_dqn, data_collection, timestep)
+        return True
+    
+    def run_single_whittle(common_metadata, data_collection, models=None):
+        graph_single_whittle = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range(1, common_metadata['timesteps'] + 1):
+            current_states_whittle = {node: int(graph_single_whittle.nodes[node]['obj'].isActive()) for node in graph_single_whittle.nodes()}
+            whittle_indices = models['whittle'].compute_whittle_indices(current_states_whittle)
+            seeded_nodes_whittle_ids = models['whittle'].select_top_k(whittle_indices, common_metadata['num_actions'])
+
+            seeded_nodes_whittle = [graph_single_whittle.nodes[node_id]['obj'] for node_id in seeded_nodes_whittle_ids]
+            ns.passive_state_transition_without_neighbors(graph_single_whittle, exempt_nodes=seeded_nodes_whittle)
+            ns.active_state_transition(seeded_nodes_whittle)
+            ns.independent_cascade_allNodes(graph_single_whittle, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_single_whittle)
+
+            Comparisons.collect_data('whittle', graph_single_whittle, data_collection, timestep)
+        return True
+    
+    def run_single_tabular(common_metadata, data_collection, models=None):
+        graph_single_tabular = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range (1, common_metadata['timesteps'] + 1):
+            tab_nodes, _ = models['tabular'].get_best_action_nodes(graph_single_tabular)
+            exempt_nodes_tab = set(tab_nodes)
+            ns.passive_state_transition_without_neighbors(graph_single_tabular, exempt_nodes=exempt_nodes_tab)
+            ns.active_state_transition(tab_nodes)
+            ns.independent_cascade_allNodes(graph_single_tabular, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_single_tabular)
+
+            Comparisons.collect_data('tabular', graph_single_tabular, data_collection, timestep)
+        return True
+
+    def run_single_noalg(common_metadata, data_collection, models=None):
+        graph_single_noalg = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range (1, common_metadata['timesteps'] + 1):
+            no_nodes = []  # empty selection
+            exempt_nodes_no = set(no_nodes)
+            ns.passive_state_transition_without_neighbors(graph_single_noalg, exempt_nodes=exempt_nodes_no)
+            ns.active_state_transition(no_nodes)  # no nodes activated
+            ns.independent_cascade_allNodes(graph_single_noalg, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_single_noalg)
+
+            Comparisons.collect_data('noalg', graph_single_noalg, data_collection, timestep)
+        return True
+
+    def run_single_random(common_metadata, data_collection, models=None):
+        graph_single_random = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range(1, common_metadata['timesteps'] + 1):
+            random_nodes_indices = random.sample(range(len(graph_single_random.nodes())), common_metadata['num_actions'])
+            seeded_nodes_random = [graph_single_random.nodes[node_index]['obj'] for node_index in random_nodes_indices]
+            exempt_nodes = seeded_nodes_random
+            ns.passive_state_transition_without_neighbors(graph_single_random, exempt_nodes=exempt_nodes)
+            ns.active_state_transition(seeded_nodes_random)
+            ns.independent_cascade_allNodes(graph_single_random, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_single_random)
+            
+            Comparisons.collect_data('random', graph_single_random, data_collection, timestep)
+        return True
 
 
-first_itr = True
-next_states = []
+    algorithms = {
+        "hillclimb": run_single_hillclimb,
+        "dqn": run_single_dqn,
+        "whittle": run_single_whittle,
+        "tabular": run_single_tabular,
+        "none": run_single_noalg,
+        "random": run_single_random
+    }
 
-pos = nx.spring_layout(G)  # Positioning of nodes
-timestep = 0
+    #compares the performance of two or more algorithms many times
+    @staticmethod
+    def run_many_comparisons(algorithms, initial_graph, num_comparisons, num_actions, cascade_prob, gamma, timesteps, timestep_interval):
+        common_metadata = {
+            'initial_graph': initial_graph,
+            'num_actions': num_actions,
+            'cascade_prob': cascade_prob,
+            'timesteps': timesteps,
+            'timestep_interval': timestep_interval
+        }
+        trials = []
 
-q_graph = copy.deepcopy(G)
-#Sets up tabular bellman
-tab = tb(G, num_actions=2)
-tab.update_q_table(num_iterations=3, num_samples=3)
+        models = dict()
 
-#hill climbing
-hillclimb_graph = copy.deepcopy(G)
+        #train all algorithms that require training
+        if 'dqn' in algorithms:
+            config_normal = {
+                "graph": copy.deepcopy(initial_graph),
+                "num_nodes": len(initial_graph.nodes),
+                "cascade_prob": cascade_prob,
+                #arbitrary
+                "stop_percent": 0.8,
+                "reward_function": "normal"
+            }
+            print("Training DQN agent with normal reward function...")
+            model_normal, policy_normal = train_dqn_agent(config_normal, num_actions)
+            models['dqn'] = model_normal
 
-#hill climbing but with Bellman's Equation
-#this is basically q graph but bad because of time constraints
-bellman_hillclimb_graph = copy.deepcopy(G)
 
-random_graph = copy.deepcopy(G)
+        if 'whittle' in algorithms:
+            transitions_whittle = {}
+            node_values = {}
+            for node_id in initial_graph.nodes():
+                node_obj = initial_graph.nodes[node_id]['obj']
+                transition_matrix = np.zeros((2, 2, 2))
 
-none_graph = copy.deepcopy(G)
+                # From Passive state (s=0)
+                transition_matrix[0, 0, 1] = node_obj.passive_activation_passive
+                transition_matrix[0, 0, 0] = 1 - node_obj.passive_activation_passive
+                transition_matrix[0, 1, 1] = node_obj.passive_activation_active
+                transition_matrix[0, 1, 0] = 1 - node_obj.passive_activation_active
 
-graphs = [q_graph, hillclimb_graph, bellman_hillclimb_graph, random_graph, none_graph]
+                # From Active state (s=1)
+                transition_matrix[1, 0, 1] = node_obj.active_activation_passive
+                transition_matrix[1, 0, 0] = 1 - node_obj.active_activation_passive
+                transition_matrix[1, 1, 1] = node_obj.active_activation_active
+                transition_matrix[1, 1, 0] = 1 - node_obj.active_activation_active
 
-timestep = 0
+                transitions_whittle[node_id] = transition_matrix
+                node_values[node_id] = node_obj.getValue()
 
-# Start simulation loop, but no graphics
-while timestep < 100:
-    #get the seeded nodes for all the graphs
-    q_seeded_nodes, utility = tab.get_best_action_nodes(q_graph)
+            whittle_policy = WhittleIndexPolicy(
+                transitions=transitions_whittle,
+                node_values=node_values,
+                discount=gamma,
+                subsidy_break=0.0,
+                eps=1e-4
+            )
 
-    #for hill climbing; seeded nodes are node objects
-    hillclimb_seeded_nodes = HillClimb.hill_climb(hillclimb_graph, 2)
+            models['whittle'] = whittle_policy
 
-    bellman_hillclimb_seeded_nodes = HillClimb.hill_climb_with_bellman(graph=bellman_hillclimb_graph, num=2, horizon=1, num_samples=1)
+        if 'tabular' in algorithms:
+            tab_bell = TabularBellman(initial_graph, num_actions=num_actions, gamma=gamma, alpha=0.8)
+            #assuming these stats don't change
+            tab_bell.update_q_table(num_episodes=300, steps_per_episode=500, epsilon=0.1)
 
-    random_seeded_nodes = random.choice(ns.generate_possible_actions_nodes(random_graph, 2))
+            models['tabular'] = tab_bell
 
-    none_seeded_nodes = None
+        for _ in range(num_comparisons):
+            result = Comparisons.run_comparisons(algorithms=algorithms, common_metadata=common_metadata, models=models)
+            trials.append(result)
+        return trials       
 
-    graph_seeds = [q_seeded_nodes, hillclimb_graph, bellman_hillclimb_graph, random_graph, none_seeded_nodes]
 
-    i = 0
-    for graph in graphs:
-        #transition step with active and passive transitions
-        transition_nodes = ns.passive_state_transition_without_neighbors(graph=graph, exempt_nodes=graph_seeds[i])
-        changed_nodes = ns.active_state_transition(graph_seeds[i])
+    @staticmethod
+    def run_comparisons(algorithms, common_metadata, models=None):
+        data_collection = {algo: {
+            'timestep': [],
+            'cumulative_active_nodes': [],
+            'percent_activated': [],
+            'reward': [],
+        } for algo in algorithms}
 
-        ns.independent_cascade_allNodes(graph, 0.05)
+        for algo in algorithms:
+            success = Comparisons.run_single_simulation(algo, common_metadata, data_collection, models=models)
+            if not success:
+                return None
+        return data_collection
 
-        ns.rearm_nodes(graph)
+    @staticmethod
+    def run_single_simulation(algorithm, common_metadata, data_collection, models=None):
+        if algorithm in Comparisons.algorithms:
+            algo_func = Comparisons.algorithms[algorithm]
+            return algo_func(common_metadata, data_collection, models=models)
+        else:
+            print("clown")
+            return False
+        
+    
+    def collect_data(algorithm, graph, data_collection, timestep):
+        # Calculate metrics
+        total_nodes = len(graph.nodes())
+        active_nodes = sum(1 for node in graph.nodes() if graph.nodes[node]['obj'].isActive())
+        
+        # Record data
+        data_collection[algorithm]['timestep'].append(timestep)
 
-    timestep += 1
+        # Update cumulative active nodes (sum over time)
+        if timestep == 1:
+            # first time we call collect_data
+            data_collection[algorithm]['cumulative_active_nodes'].append(active_nodes)
+        else:
+            # subsequent timesteps
+            last_cumulative = data_collection[algorithm]['cumulative_active_nodes'][-1]
+            data_collection[algorithm]['cumulative_active_nodes'].append(last_cumulative + active_nodes)
+
+        # Calculate percentage of network activated (current timestep)
+        percent_activated = (active_nodes / total_nodes) * 100
+        data_collection[algorithm]['percent_activated'].append(percent_activated)
+
+        data_collection[algorithm]['reward'].append(ns.reward_function(graph, seed=None))
