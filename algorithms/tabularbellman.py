@@ -59,7 +59,7 @@ class TabularBellman:
                         # Determine next state
                         next_state_index = self.calculate_state_table_pos(next_graph)
 
-                        # Q-learning update
+                        # Q-learning update #MEASURE THIS COMPUTATIONAL COST
                         best_next_Q = np.max(self.qtable[next_state_index])
                         current_Q = self.qtable[state_index, action_index]
                         self.qtable[state_index, action_index] = current_Q + self.alpha * (reward + self.gamma * best_next_Q - current_Q)

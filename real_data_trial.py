@@ -2,6 +2,7 @@ import networkx as nx
 import random
 from networkSim import NetworkSim  as ns
 from networkvis import NetworkVis as nv
+#add: graph neural network
 
 import sys
 import os
@@ -42,15 +43,19 @@ def build_graph_from_edgelist(edgelist_path, value_low, value_high):
 
     return G
 
-graph = build_graph_from_edgelist("./graphs/India.txt", value_low=1, value_high=10)
+graph = build_graph_from_edgelist("./graphs/India.txt", value_low=1, value_high=2)
 pos = nx.spring_layout(graph)  # Positioning of nodes
 
 #nv.render(graph, pos)
 #input()
 
-algorithms = ['dqn', 'tabular', 'whittle']
+algorithms = ['dqn', 'hillclimb', 'none']
 
-results = (Comparisons.run_many_comparisons(
+comp = Comparisons()
+comp.train_dqn(graph, 20, 0.05)
+#comp.train_whittle(graph, 0.8)
+
+results = (comp.run_many_comparisons(
     algorithms=algorithms, 
     initial_graph=graph, 
     num_comparisons=10, 
@@ -65,6 +70,3 @@ plot_trials(
     output_dir="results", 
     plot_cumulative_for=("reward",),  # tuple of metrics you want to also plot cumulatively
     file_prefix="comparison")         # prefix for output filed
-
-
-
