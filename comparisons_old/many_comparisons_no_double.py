@@ -9,9 +9,9 @@ import pandas as pd
 import seaborn as sns
 
 from networkSim import NetworkSim as ns
-from hillClimb import HillClimb
-from deepq import train_dqn_agent, select_action_dqn
-from whittle import WhittleIndexPolicy  # Import Whittle policy
+from algorithms.hillClimb import HillClimb
+from algorithms.deepq import train_dqn_agent, select_action_dqn
+from algorithms.whittle import WhittleIndexPolicy  # Import Whittle policy
 
 # Parameters
 NUM_SIMULATIONS = 100  # Number of simulations per graph size

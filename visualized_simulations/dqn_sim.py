@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import torch
 import torch.nn as nn
-from deepq import train_dqn_agent, select_action_dqn  # Ensure main.py is accessible
+from algorithms.deepq import train_dqn_agent, select_action_dqn  # Ensure main.py is accessible
 from networkSim import NetworkSim as ns  # Ensure networkSim.py is accessible
 
 

@@ -9,8 +9,8 @@ import pandas as pd
 import seaborn as sns
 
 from networkSim import NetworkSim as ns
-from deepq import train_dqn_agent, select_action_dqn
-from tabularbellman import TabularBellman  # Assume tabular Q-learning-based Bellman is implemented
+from algorithms.deepq import train_dqn_agent, select_action_dqn
+from algorithms.tabularbellman import TabularBellman  # Assume tabular Q-learning-based Bellman is implemented
 
 # Parameters
 NUM_NODES = 15

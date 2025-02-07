@@ -6,9 +6,9 @@ import random
 import multiprocessing as mp
 
 from networkSim import NetworkSim as ns
-from hillClimb import HillClimb
-from deepq import train_dqn_agent, select_action_dqn
-from doubleq import train_double_dqn_agent, select_action_double_dqn
+from algorithms.hillClimb import HillClimb
+from algorithms.deepq import train_dqn_agent, select_action_dqn
+from algorithms.OLD_doubleq import train_double_dqn_agent, select_action_double_dqn
 
 import matplotlib.pyplot as plt
 from collections import defaultdict

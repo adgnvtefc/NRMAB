@@ -5,9 +5,9 @@ import copy
 import random
 
 from networkSim import NetworkSim as ns
-from hillClimb import HillClimb
-from deepq import train_dqn_agent, select_action_dqn
-from doubleq import train_double_dqn_agent, select_action_double_dqn 
+from algorithms.hillClimb import HillClimb
+from algorithms.deepq import train_dqn_agent, select_action_dqn
+from algorithms.OLD_doubleq import train_double_dqn_agent, select_action_double_dqn 
 
 # Activation chance in passive action
 PASSIVE_ACTIVATION_CHANCE = 0.05
@@ -102,7 +102,7 @@ def main():
             'timestep': [],
             'cumulative_active_nodes': [],
             'discounted_activation': [],
-            'percent_activated': [],
+            'percent_activated': [], 
             'activation_efficiency': [],
         } for algo in algorithms}
 

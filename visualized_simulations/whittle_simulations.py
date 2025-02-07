@@ -9,7 +9,7 @@ import heapq
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from networkSim import NetworkSim as ns
-from whittle import WhittleIndexPolicy
+from algorithms.whittle import WhittleIndexPolicy
 
 def main():
     """
