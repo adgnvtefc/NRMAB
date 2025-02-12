@@ -26,3 +26,17 @@ Algorithms can be found in the `algorithms` folder. Implemented algorithms inclu
 - Tabular Bellman: uses tabular Q learning to select top k actions. Only works for small graph sizes. Found in `tabularbellman.py`.
 - Whittle Index: calculates the Whittle Index used in traditional network-blind RMABs. Often used as baseline comparison. Found in `whittle.py`. (NOTE: temporarily dysfunctional after refactoring due to probably multithreading shenanigans)
 New algorithms may be added in time. `comparisons.py` should be updated concurrently as new algorithms are introduced. 
+
+## Data
+
+Real-world data used to create graph structures is in `graphs`. While networks are created from that data, individual node properties and cascade probabilities are independently defined.
+
+## Examples
+
+For a visual representation of a graph and algorithm, see `visualized_simulations`. Some modules prefaced with `OLD` may be outdated. Modules not prefaced as such may still be outdated. Hopefully they work as intended.
+
+Example comparison can be found in `example_comparison_usage` (NOTE: outdated) and `real_data_trial.py`. Results to the real data trial can be found in `results` folders.
+
+## Old
+
+`comparisons_old` contains the old code for comparing algorithms. In case you ever wondered why `comparisons.py` is necessary, look into that folder. It is not pretty. You have been warned.
