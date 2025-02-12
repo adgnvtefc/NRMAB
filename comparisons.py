@@ -7,6 +7,7 @@ from networkSim import NetworkSim as ns
 import networkx as nx
 import numpy as np
 import random
+import timeit #for timing the runtime of various training algorithms
 
 #Module used to compare the results of running different algorithms and saving to csv file
 #ERROR: WHITTLE BREAKS IT FOR... REASONS IG
@@ -43,7 +44,11 @@ class Comparisons:
                 "reward_function": "normal"
             }
         print("Training DQN agent with normal reward function...")
-        model_normal, policy_normal = train_dqn_agent(config_normal, num_actions)
+        t_0 = timeit.default_timer()
+        model_normal, policy_normal = train_dqn_agent(config_normal, num_actions, num_epochs=10)
+        t_1 = timeit.default_timer()
+        elapsed = t_1 - t_0 #in nanoseconds
+        print(f"elapsed time: {elapsed} nanoseconds")
         self.models['dqn'] = model_normal
 
     def train_tabular(self, initial_graph, num_actions, gamma):

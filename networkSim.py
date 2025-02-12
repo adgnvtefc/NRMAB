@@ -154,8 +154,6 @@ class NetworkSim:
                     if random.random() <= edge_weight:
                         graph.nodes[neighbor]['obj'].activate()
                         newlyActivated.add(neighbor)
-        #currently just recursively call cascade on the newly updated nodes
-        #efficiency can probably be improved using subgraphs
         if len(newlyActivated) > 0:
             newlyActivated.update(NetworkSim.independent_cascade_allNodes(graph, edge_weight))
         
@@ -190,24 +188,10 @@ class NetworkSim:
         return list(itertools.combinations(nodes, num))
 
     
-    #also consider future reward for that particular activation -- in the next timestep
-    #usually -- bellman equation -- define value function of a certain state, and use that to write bellman equation
-    #hill climbing considered with respect to this value function -- if a node is in center of graph, this node should have much higher activation
-    #node based on self activation / deactivation probabilities
-    #use dp
-    #careful -- state and actions can be very combinatorial, reach very high levels
-
-    #value -- take into account active/inactive nodes at current state, and use that to estimate total value of graph
-
-    #bellman's equation -- https://www.deeplearningwizard.com/deep_learning/deep_reinforcement_learning_pytorch/bellman_mdp/#key-recap-on-value-functions
-
     #finds the rewards of a function given seed
     @staticmethod
-    def reward_function(graph, seed, cascade_reward = None):
-        #defined by the number of active nodes and active edges that have unactivated nodes at either end (taken out for now)
-        #len_edges = len(NetworkSim.get_exclusive_active_edges(graph, seed))
-
-        # Count the number of active nodes
+    def reward_function(graph, seed):
+        # Count the value of active nodes
         value = 0
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']
@@ -216,53 +200,9 @@ class NetworkSim:
                 value += node_obj.getValue()
         
         return value
-    
-    #finds the reward of a given state with 1-step lookforward
-    @staticmethod
-    def enhanced_reward_function(graph, seed, action_size, gamma, cascade_reward=0.2, num_samples=10):
-        current_reward = NetworkSim.reward_function(graph=graph, seed=seed, cascade_reward=cascade_reward)
-        
-        all_nodes = list(graph.nodes())
-        # Ensure we have enough nodes to sample
-        available_nodes = [node for node in all_nodes if not graph.nodes[node]['obj'].isActive()]
-        max_possible_samples = math.comb(len(available_nodes), action_size)
-        actual_samples = min(num_samples, max_possible_samples)
-        
-        if actual_samples == 0:
-            return current_reward  # No possible actions to sample
-        
-        sampled_actions = set()
-        attempts = 0
-        max_attempts = num_samples * 10  # To prevent infinite loops
-        
-        while len(sampled_actions) < actual_samples and attempts < max_attempts:
-            action = tuple(random.sample(available_nodes, action_size))
-            sampled_actions.add(action)
-            attempts += 1
-        
-        future_sum = 0
-        for action in sampled_actions:
-            test_graph = NetworkSim.simulate_next_state(graph=graph, action=action)
-            future_reward = NetworkSim.reward_function(test_graph, seed=None, cascade_reward=cascade_reward)
-            future_sum += future_reward * gamma
-        
-        # Get the average future reward
-        future_sum /= len(sampled_actions)
-
-        return current_reward + future_sum
-
-
 
 
     #defines the value of being in a certain state, denoted as V(s)
-    #num is k, the number of nodes to activate in the subsequent action
-    #note: in current implementation, state space gets very very big
-    #horizon: how far in the future to look
-
-    #alternative -- make DP table of state/action value function, and repeatedly update state value and action value
-    # where V(s) is a table of ALL possible states and Q(s, a) is a table of ALL possible state-action pairs
-    # V(s) can be a 1-D list and Q(s) can be a 2-D matrix with s as one indices and A as other indices
-    # ACTION: VERIFY SUBMODULARITY F(A + x) - F(A) > f(B + x) - f(B) given A < B
     @staticmethod
     def state_value_function(graph, num=1, gamma=0.7, horizon=1, max_horizon = None, num_samples=5):
         
@@ -284,7 +224,7 @@ class NetworkSim:
         max_value = float('-inf')
         optimal_action = None
         for action in sampled_actions:
-            value = NetworkSim.action_value_function(graph, action, num=num, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)
+            value = NetworkSim.action_value_function(graph, action, num_actions=num, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)
             if value > max_value:
                 max_value = value
                 #note that this is INDICES
@@ -304,9 +244,9 @@ class NetworkSim:
     # and take the average reward of each state
     # this explanation does not make much sense, but you will see what i mean
     @staticmethod
-    def action_value_function(graph, action, num=1, cascade_reward = 0.2, gamma=0.99, horizon=3, max_horizon=3, num_samples=10):
+    def action_value_function(graph, action, num_actions=1, cascade_prob = 0.1, gamma=0.99, horizon=3, max_horizon=3, num_samples=10):
         #the rewards for performing the actions specified on the current state
-        immediate_reward = NetworkSim.reward_function(graph, action, cascade_reward=cascade_reward)
+        immediate_reward = NetworkSim.reward_function(graph, action)
 
         # Simulate possible next states and compute expected future value
         total_future_value = 0
@@ -314,10 +254,10 @@ class NetworkSim:
         #sample num_samples numbers of future states
         for _ in range(num_samples):
             #simulate next state based on the graph and action taken
-            next_state = NetworkSim.simulate_next_state(graph, action)
+            next_state = NetworkSim.simulate_next_state(graph, action, cascade_prob)
 
             future_value = NetworkSim.state_value_function(
-                next_state, num=num, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)[0]
+                next_state, num=num_actions, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)[0]
             total_future_value += future_value
 
         expected_future_value = total_future_value / num_samples
@@ -329,7 +269,7 @@ class NetworkSim:
     #helper function to simulate the full next state of the graph
     #wow the fact that this is so succinct is actually so sexy
     @staticmethod
-    def simulate_next_state(graph, action):
+    def simulate_next_state(graph, action, cascade_prob):
         # Returns a deep copy of the graph representing the next state after simulating transitions
         new_graph = copy.deepcopy(graph)
 
@@ -338,8 +278,7 @@ class NetworkSim:
         #simulate active transition
         NetworkSim.active_state_transition_graph_indices(new_graph, action)
         
-        #0.1 is a placeholder. more advanced functionality will be implemented *eventually*
-        NetworkSim.independent_cascade_allNodes(new_graph, 0.1)
+        NetworkSim.independent_cascade_allNodes(new_graph, cascade_prob)
 
         NetworkSim.rearm_nodes(new_graph)
 

@@ -46,20 +46,18 @@ def build_graph_from_edgelist(edgelist_path, value_low, value_high):
 graph = build_graph_from_edgelist("./graphs/India.txt", value_low=1, value_high=2)
 pos = nx.spring_layout(graph)  # Positioning of nodes
 
-#nv.render(graph, pos)
-#input()
 
 algorithms = ['dqn', 'hillclimb', 'none']
+NUM_ACTIONS = 30
 
 comp = Comparisons()
-comp.train_dqn(graph, 20, 0.05)
-#comp.train_whittle(graph, 0.8)
+comp.train_dqn(graph, NUM_ACTIONS, 0.05)
 
 results = (comp.run_many_comparisons(
     algorithms=algorithms, 
     initial_graph=graph, 
     num_comparisons=10, 
-    num_actions=2, 
+    num_actions=NUM_ACTIONS,
     cascade_prob=0.05, 
     gamma=0.8, 
     timesteps=30, 

@@ -1,11 +1,5 @@
-# main.py
-
 import gymnasium as gym
-import tianshou as ts
 from algorithms.deep_q_env import NetworkInfluenceEnv
-from networkSim import NetworkSim as ns
-from networkvis import NetworkVis as nv
-import networkx as nx
 import random
 import torch
 import torch.nn as nn
@@ -14,11 +8,9 @@ from tianshou.env import DummyVectorEnv
 from tianshou.data import Collector, VectorReplayBuffer, Batch
 from tianshou.policy import BasePolicy
 from tianshou.trainer import OffpolicyTrainer
-from tianshou.utils.net.common import Net
 from torch.utils.tensorboard import SummaryWriter
 from tianshou.utils import TensorboardLogger
 import os
-from tianshou.utils import LazyLogger
 from dataclasses import dataclass
 from typing import Dict
 
@@ -195,7 +187,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
     test_envs = DummyVectorEnv([get_env for _ in range(1)])
 
     def stop_fn(mean_rewards):
-        return mean_rewards >= 500000 # Define a suitable threshold for your problem
+        return False
 
     def train_fn(epoch, env_step):
         epsilon = max(0.1, 1 - env_step / 100_000)  # Linear decay
@@ -248,7 +240,7 @@ def select_action_dqn(graph, model, num_actions):
     """
     num_nodes = len(graph.nodes())
     state = np.array([int(graph.nodes[i]['obj'].isActive()) for i in graph.nodes()], dtype=np.float32)
-    device = torch.device("cpu")  # Ensure tensor is on CPU
+    device = next(model.parameters()).device
     selected_node_indices = []
 
     for _ in range(num_actions):

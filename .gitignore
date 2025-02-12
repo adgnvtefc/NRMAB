@@ -4,6 +4,9 @@
 *.pyd
 __pycache__/
 
+#Path Files (temporarily)
+*.pth
+
 #Less Relevant Files 
 OTHER/
 
