@@ -8,7 +8,7 @@ import random
 from algorithms.graph_env import GraphEnv, convert_nx_to_pyg
 
 class GraphQ:
-    def __init__(self, input_dim, hidden_dim, output_dim, gamma=0.8, lr=0.01, epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.01):
+    def __init__(self, input_dim, hidden_dim, output_dim, gamma=0.8, lr=0.01, epsilon=1.0, epsilon_decay=0.995, epsilon_min=0.2):
         """
         Initialize the GraphQ model.
 

@@ -85,7 +85,7 @@ class GraphEnv(gym.Env):
             horizon=1, num_samples=1
         )
         reward *= self.reward_mult
-        self.reward_mult -= 0.05
+        self.reward_mult -= 0.02
         self.latest_step_reward = reward
 
         # Some updates to your graph state
