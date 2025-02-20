@@ -60,7 +60,7 @@ class NetworkInfluenceEnv(gym.Env):
         action_indices = np.argwhere(action).flatten()
 
         #significantly slows down with any parameter other than num_samples=1 (abt 2 min per epoch at =1, 20 min at =3, for... reasons ig)
-        reward = ns.action_value_function(self.graph, action, num_actions=1, cascade_prob=self.cascade_prob, gamma=self.gamma, horizon=1, num_samples=1)
+        reward = ns.action_value_function(self.graph, action, num_actions=1, cascade_prob=self.cascade_prob, gamma=self.gamma, horizon=1, num_samples=3)
         self.latest_step_reward = reward
 
         ns.passive_state_transition_without_neighbors(self.graph, action_indices)

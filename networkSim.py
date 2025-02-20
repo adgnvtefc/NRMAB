@@ -21,8 +21,8 @@ class NetworkSim:
             passive_activation_active_action = round(random.uniform(0.5, 1.0), 4)
             passive_activation_passive_action = round(random.uniform(0.0, passive_activation_active_action), 4)
 
-            # Generate a random value within the specified range
-            node_value = random.randint(value_low, value_high)
+            # UPDATE: CAN NOW GENERATE NON-INT VALUES
+            node_value = random.uniform(value_low, value_high)
 
             # Instantiate the SimpleNode with generated probabilities and value
             node = Node(
@@ -97,6 +97,8 @@ class NetworkSim:
         changed = set()
         if exempt_nodes is None:
             exempt_nodes = set()
+        if not hasattr(exempt_nodes, '__iter__'):
+            exempt_nodes = set([exempt_nodes])
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']  # Get the SimpleNode object
             if node_obj in exempt_nodes:
@@ -122,6 +124,9 @@ class NetworkSim:
     @staticmethod
     def active_state_transition_graph_indices(graph, node_indices):
         changed = set()
+        #print(node_indices)
+        if not hasattr(node_indices, "__iter__"):
+                node_indices = [node_indices]
         for index in node_indices:
             node = graph.nodes[index]['obj']
             original_state = node.isActive()
@@ -195,6 +200,8 @@ class NetworkSim:
         value = 0
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']
+            if not hasattr(seed, '__iter__'):
+                seed = [seed]
             # A node is active if it's in the seed or if its object reports it as active
             if (seed is not None and node in seed) or node_obj.isActive():
                 value += node_obj.getValue()
@@ -286,5 +293,39 @@ class NetworkSim:
         NetworkSim.determine_edge_activation(new_graph)
 
         return new_graph
+
+    @staticmethod    
+    def build_graph_from_edgelist(edgelist_path, value_low, value_high):
+        edges = []
+        with open(edgelist_path, 'r') as f:
+            for line in f:
+                # each line has "source destination"
+                s, d = line.strip().split()
+                s, d = int(s), int(d)
+                edges.append((s, d))
+        # 2) Identify all unique nodes
+        unique_nodes = set()
+        for (src, dst) in edges:
+            unique_nodes.add(src)
+            unique_nodes.add(dst)
+
+        # Sort them so we can index consistently
+        unique_nodes = sorted(unique_nodes)
+        num_nodes = len(unique_nodes)
+
+        random_nodes = NetworkSim.generate_random_nodes(num_nodes, value_low, value_high)
+
+        G = nx.Graph()
+
+        node_id_map = {}  # real_node_id -> index in [0..num_nodes-1]
+        for idx, real_node_id in enumerate(unique_nodes):
+            node_id_map[real_node_id] = idx
+            # `random_nodes[idx]` is a dict: {"obj": <Node>}
+            G.add_node(real_node_id, obj=random_nodes[idx]["obj"])
+
+        for (s, d) in edges:
+            G.add_edge(s, d)
+
+        return G
 
     

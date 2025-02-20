@@ -25,10 +25,9 @@ class HillClimb:
         #iterate thru graph to see nodes that can pick
         for node in graph:
             #arbitrarily chosen discount factor
-            discount_factor = 0.5
+            discount_factor = 0.2
 
-            #replace this value with the value function
-            value = 0
+            value = graph.nodes[node]['obj'].getValue()
 
             #bootstrap solution to not double activate node under guaranteed activation
             if graph.nodes[node]['obj'].isActive():
@@ -64,8 +63,5 @@ class HillClimb:
 
         for node in selected_nodes:
             seeded_set.add(graph.nodes[node]['obj'])
-            #the actual activation of nodes has been moved to a separate function; this function now only returns nodes to activate
-
-        #print(top_nodes)
         
         return seeded_set

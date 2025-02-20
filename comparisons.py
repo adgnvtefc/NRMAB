@@ -3,6 +3,8 @@ from algorithms.hillClimb import HillClimb
 from algorithms.deepq import train_dqn_agent, select_action_dqn
 from algorithms.whittle import WhittleIndexPolicy
 from algorithms.tabularbellman import TabularBellman 
+from algorithms.NEW_GraphQ import GraphQ
+from algorithms.graph_env import GraphEnv
 from networkSim import NetworkSim as ns
 import networkx as nx
 import numpy as np
@@ -18,6 +20,7 @@ class Comparisons:
     #     "dqn": run_single_dqn,
     #     "whittle": run_single_whittle,
     #     "tabular": run_single_tabular,
+    #     "graph": run_single_graph
     #     "none": run_single_noalg,
     #     "random": run_single_random
     # }
@@ -30,6 +33,7 @@ class Comparisons:
             "dqn": self.run_single_dqn,
             "whittle": self.run_single_whittle,
             "tabular": self.run_single_tabular,
+            "graph": self.run_single_graph,
             "none": self.run_single_noalg,
             "random": self.run_single_random
         }
@@ -45,7 +49,7 @@ class Comparisons:
             }
         print("Training DQN agent with normal reward function...")
         t_0 = timeit.default_timer()
-        model_normal, policy_normal = train_dqn_agent(config_normal, num_actions, num_epochs=10)
+        model_normal, policy_normal = train_dqn_agent(config_normal, num_actions, num_epochs=3)
         t_1 = timeit.default_timer()
         elapsed = t_1 - t_0 #in nanoseconds
         print(f"elapsed time: {elapsed} nanoseconds")
@@ -89,6 +93,24 @@ class Comparisons:
         )
 
         self.models['whittle'] = whittle_policy
+    
+    def train_graph(self, initial_graph, num_actions, cascade_prob):
+        config = {
+            "graph": copy.deepcopy(initial_graph),
+            "num_nodes": len(initial_graph.nodes),
+            "cascade_prob": cascade_prob,
+            #arbitrary
+            "stop_percent": 0.8,
+            "reward_function": "normal",
+            "gamma": 0.8 #arbitrary
+        }
+        env = GraphEnv(config)
+        input_dim = 6
+        hidden_dim = 16
+        output_dim = 1
+        model = GraphQ(input_dim, hidden_dim, output_dim)
+        model.train(env, num_episodes=10)
+        self.models["graph"] = model
 
 
 
@@ -148,6 +170,19 @@ class Comparisons:
             ns.rearm_nodes(graph_single_tabular)
 
             self.collect_data('tabular', graph_single_tabular, data_collection, timestep)
+        return True
+    
+    def run_single_graph(self, common_metadata, data_collection):
+        graph_single_graph = copy.deepcopy(common_metadata['initial_graph'])
+        for timestep in range(1, common_metadata['timesteps'] + 1):
+            seeded_nodes_graph = self.models["graph"].predict(graph_single_graph, k=common_metadata['num_actions'])
+
+            ns.passive_state_transition_without_neighbors(graph_single_graph, exempt_nodes=seeded_nodes_graph)
+            ns.active_state_transition_graph_indices(graph_single_graph, seeded_nodes_graph)
+            ns.independent_cascade_allNodes(graph_single_graph, common_metadata['cascade_prob'])
+            ns.rearm_nodes(graph_single_graph)
+
+            self.collect_data('graph', graph_single_graph, data_collection, timestep)
         return True
 
     def run_single_noalg(self, common_metadata, data_collection):

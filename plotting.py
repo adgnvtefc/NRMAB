@@ -1,6 +1,3 @@
-#module used for plotting the results of comparisons
-#TEMP, WILL FIX LATER
-
 # plotting.py
 import os
 import numpy as np
@@ -10,18 +7,22 @@ import matplotlib.pyplot as plt
 def plot_trials(
     trials, 
     output_dir="results", 
-    plot_cumulative_for=("reward",),  # tuple of metrics you want to also plot cumulatively
-    file_prefix="comparison"         # prefix for output files
+    plot_cumulative_for=("reward",),  # tuple of metrics for which you want cumulative plots
+    file_prefix="comparison",         # prefix for output files
+    metadata=None                     # optional dict with metadata to store
 ):
     """
     Given a list of 'trials' (each an output of Comparisons.run_comparisons),
     this function computes the mean over trials for each algorithm and metric,
     saves it to CSV, and plots each metric (plus optional cumulative plots).
+    Optionally, it also writes a metadata text file if a 'metadata' dict is provided.
 
     :param trials: list of data_collection dicts, each for one simulation run.
     :param output_dir: directory to save CSV and plots.
     :param plot_cumulative_for: metrics for which to also produce cumulative plots.
     :param file_prefix: prefix string used in the output filenames.
+    :param metadata: an optional dictionary with extra details 
+                     (e.g., graph, num_comparisons, etc.) to save in a txt file.
     """
     
     if not trials:
@@ -31,25 +32,28 @@ def plot_trials(
     # Make sure our output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
+    # --- (A) Write metadata to a text file if provided ---
+    if metadata is not None:
+        metadata_path = os.path.join(output_dir, f"{file_prefix}_metadata.txt")
+        with open(metadata_path, "w") as f:
+            for key, val in metadata.items():
+                f.write(f"{key}: {val}\n")
+        print(f"Saved metadata to {metadata_path}")
+
     # --- 1) Identify algorithms and metrics from the first trial ---
     first_trial = trials[0]
     algorithms = sorted(first_trial.keys())
-    # We'll assume each algorithm has the same set of metrics:
-    # e.g. ['timestep', 'cumulative_active_nodes', 'percent_activated', 'reward']
-    # We'll exclude 'timestep' from the "metrics" we aggregate (since it's the x-axis).
     possible_keys = list(first_trial[algorithms[0]].keys())
+    # We assume 'timestep' is the independent variable
     if 'timestep' in possible_keys:
         possible_keys.remove('timestep')
     metrics = sorted(possible_keys)
 
-    # --- 2) Gather all timesteps (assume they are consistent) from the first trial for each algorithm ---
-    # We'll assume all algorithms have the same length of timesteps in a single trial.
-    # We'll also assume each trial has the same number of timesteps.
+    # --- 2) Gather timesteps from the first trial for each algorithm ---
     T = len(first_trial[algorithms[0]]['timestep'])
     timesteps = np.array(first_trial[algorithms[0]]['timestep'])
 
     # --- 3) Create data structures to hold all values across trials ---
-    # data_values[algo][metric] will be a np.array of shape (num_trials, T)
     data_values = {
         algo: {
             metric: np.zeros((len(trials), T), dtype=float)
@@ -66,7 +70,6 @@ def plot_trials(
                 data_values[algo][metric][trial_idx, :] = trial[algo][metric]
 
     # --- 5) Compute mean over trials (axis=0) for each metric ---
-    # We'll store the results in a dictionary of shape [algo][metric][mean array].
     mean_data = {}
     for algo in algorithms:
         mean_data[algo] = {}
@@ -74,11 +77,7 @@ def plot_trials(
             mean_data[algo][metric] = data_values[algo][metric].mean(axis=0)  # shape (T,)
 
     # --- 6) Build a DataFrame to export to CSV ---
-    # We'll have columns like: Timestep, <algo>_<metric>_mean, ...
-    # The index from 1..T is the timestep for clarity.
-    df_dict = {
-        'timestep': timesteps
-    }
+    df_dict = {'timestep': timesteps}
     for algo in algorithms:
         for metric in metrics:
             col_name = f"{algo}_{metric}_mean"
@@ -142,7 +141,16 @@ def main():
 
     Then you just call:
 
-        plot_trials(trials, output_dir="results", plot_cumulative_for=("reward",))
+        metadata = {
+            "algorithms": ["hillclimb", "dqn", "whittle", "tabular", "none", "random"],
+            "initial_graph": "G",
+            "num_comparisons": 50,
+            "num_actions": 2,
+            "cascade_prob": 0.2,
+            "gamma": 0.9,
+            "timesteps": 20
+        }
+        plot_trials(trials, output_dir="results", plot_cumulative_for=("reward",), metadata=metadata)
     """
     pass
 

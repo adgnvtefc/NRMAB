@@ -1,0 +1,7 @@
+algorithms: ['graph', 'hillclimb', 'none']
+initial_graph: Graph with 202 nodes and 692 edges
+num_comparisons: 10
+num_actions: 30
+cascade_prob: 0.05
+gamma: 0.8
+timesteps: 30
