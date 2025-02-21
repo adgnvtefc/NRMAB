@@ -1,0 +1,7 @@
+algorithms: ['dqn', 'tabular', 'whittle', 'hillclimb', 'none']
+initial_graph: Graph with 10 nodes and 23 edges
+num_comparisons: 50
+num_actions: 2
+cascade_prob: 0.05
+gamma: 0.8
+timesteps: 30

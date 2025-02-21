@@ -58,7 +58,7 @@ class Comparisons:
     def train_tabular(self, initial_graph, num_actions, gamma):
         tab_bell = TabularBellman(initial_graph, num_actions=num_actions, gamma=gamma, alpha=0.8)
             #assuming these stats don't change
-        tab_bell.update_q_table(num_episodes=300, steps_per_episode=500, epsilon=0.1)
+        tab_bell.update_q_table(num_episodes=300, steps_per_episode=500, epsilon=0.3)
 
         self.models['tabular'] = tab_bell
 
