@@ -1,6 +1,6 @@
 import copy
 from algorithms.hillClimb import HillClimb
-from algorithms.deepq import train_dqn_agent, select_action_dqn
+from algorithms.deepq import train_dqn_agent, select_action_dqn, get_dqn_total_time, get_dqn_times_called
 from algorithms.whittle import WhittleIndexPolicy
 from algorithms.tabularbellman import TabularBellman 
 from algorithms.NEW_GraphQ import GraphQ
@@ -48,11 +48,11 @@ class Comparisons:
                 "reward_function": "normal"
             }
         print("Training DQN agent with normal reward function...")
-        t_0 = timeit.default_timer()
+        #t_0 = timeit.default_timer()
         model_normal, policy_normal = train_dqn_agent(config_normal, num_actions, num_epochs=3)
         t_1 = timeit.default_timer()
-        elapsed = t_1 - t_0 #in nanoseconds
-        print(f"elapsed time: {elapsed} nanoseconds")
+        #elapsed = t_1 - t_0 #in nanoseconds
+        #print(f"elapsed time: {elapsed} nanoseconds")
         self.models['dqn'] = model_normal
 
     def train_tabular(self, initial_graph, num_actions, gamma):
@@ -227,6 +227,15 @@ class Comparisons:
         for _ in range(num_comparisons):
             result = self.run_comparisons(algorithms=algorithms, common_metadata=common_metadata)
             trials.append(result)
+        if "hillclimb" in algorithms:
+            print("Hill Climb")
+            print(HillClimb.get_hillclimb_total_time())
+            print(HillClimb.get_hillclimb_times_called())
+        if "dqn" in algorithms:
+            print("dqn")
+            print(get_dqn_total_time())
+            print(get_dqn_times_called())
+        
         return trials       
 
 
@@ -241,7 +250,7 @@ class Comparisons:
         for algo in algorithms:
             success = self.run_single_simulation(algo, common_metadata, data_collection)
             if not success:
-                return None
+                return None        
         return data_collection
 
     def run_single_simulation(self, algorithm, common_metadata, data_collection):

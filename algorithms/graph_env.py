@@ -18,6 +18,7 @@ def convert_nx_to_pyg(G: 'nx.Graph') -> Data:
         G.nodes[n]['x'] = torch.tensor([
             float(node_obj.isActive()),
             node_obj.getValue(),
+            ###performActiveAction
             node_obj.active_activation_active,
             node_obj.active_activation_passive,
             node_obj.passive_activation_active,

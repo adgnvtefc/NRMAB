@@ -13,6 +13,7 @@ from tianshou.utils import TensorboardLogger
 import os
 from dataclasses import dataclass
 from typing import Dict
+import time
 
 log_path = os.path.join('logs', 'dqn')
 writer = SummaryWriter(log_path)
@@ -238,6 +239,8 @@ def select_action_dqn(graph, model, num_actions):
     Returns:
         A list of node objects representing the selected actions.
     """
+    start_time = time.perf_counter()
+    select_action_dqn.times_called += 1
     num_nodes = len(graph.nodes())
     state = np.array([int(graph.nodes[i]['obj'].isActive()) for i in graph.nodes()], dtype=np.float32)
     device = next(model.parameters()).device
@@ -272,5 +275,17 @@ def select_action_dqn(graph, model, num_actions):
         state[top_action_index] = 1
     
     seeded_nodes = [graph.nodes[node_index]['obj'] for node_index in selected_node_indices]
-
+    end_time = time.perf_counter()
+    elapsed = end_time - start_time
+        
+    select_action_dqn.total_time += elapsed
     return seeded_nodes
+select_action_dqn.total_time = 0.0
+select_action_dqn.times_called = 0
+
+@staticmethod
+def get_dqn_total_time():
+    return select_action_dqn.total_time
+@staticmethod
+def get_dqn_times_called():
+    return select_action_dqn.times_called

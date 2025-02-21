@@ -123,6 +123,8 @@ class NetworkSim:
     #same as above, but takes list of indices of a graph
     @staticmethod
     def active_state_transition_graph_indices(graph, node_indices):
+        #print(graph)
+        #print(node_indices)
         changed = set()
         #print(node_indices)
         if not hasattr(node_indices, "__iter__"):

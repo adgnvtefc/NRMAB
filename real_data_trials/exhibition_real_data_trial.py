@@ -1,29 +1,26 @@
 import networkx as nx
-import random
-from networkSim import NetworkSim  as ns
-from networkvis import NetworkVis as nv
-#add: graph neural network
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from networkSim import NetworkSim  as ns
+from networkvis import NetworkVis as nv
 from comparisons import Comparisons 
 from plotting import plot_trials
 
-graph = ns.build_graph_from_edgelist("./graphs/India.txt", value_low=1, value_high=2)
+graph = ns.build_graph_from_edgelist("./graphs/Exhibition_reindexed.txt", value_low=1, value_high=2)
+print(graph)
 pos = nx.spring_layout(graph)  # Positioning of nodes
-
-
-algorithms = ['graph', 'hillclimb', 'none']
+algorithms = ['dqn', 'hillclimb', 'none']
 #ALL PREVIOUS EXPERIMENTS RAN WITH 30 ACTIONS
 NUM_ACTIONS = 30
-NUM_COMPARISONS = 10
+NUM_COMPARISONS = 50
 CASCADE_PROB = 0.05
 GAMMA = 0.8
 TIMESTEPS = 30
 TIMESTEP_INTERVAL=5
 comp = Comparisons()
-#comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
-comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
+comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
+#comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
 
 metadata = {"algorithms": algorithms,
             "initial_graph": graph,
@@ -54,3 +51,5 @@ print(algorithms)
 print(f"num comparisons: {NUM_COMPARISONS}")
 print(f"num actions: {NUM_ACTIONS}")
 print(f"cascade prob: {CASCADE_PROB}")
+print(len(graph.nodes))
+print(len(graph.edges))

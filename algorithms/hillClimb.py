@@ -1,7 +1,11 @@
 import heapq
 from networkSim import NetworkSim as ns
+import time
 
 class HillClimb:
+    total_hill_climb_time = 0.0  # class-level accumulator
+    times_called = 0
+
     #okay this one isn't really hill climb anymore, more like just pure bellman
     @staticmethod
     def hill_climb_with_bellman(graph, num=1, gamma=0.7, horizon=3, num_samples=5):
@@ -19,6 +23,9 @@ class HillClimb:
 
     @staticmethod
     def hill_climb(graph, num=1):
+        start_time = time.perf_counter()
+        HillClimb.times_called += 1
+
         seeded_set = set()
         node_values = []
 
@@ -63,5 +70,15 @@ class HillClimb:
 
         for node in selected_nodes:
             seeded_set.add(graph.nodes[node]['obj'])
+        end_time = time.perf_counter()
+        elapsed = end_time - start_time
         
+        HillClimb.total_hill_climb_time += elapsed
+
         return seeded_set
+    @staticmethod
+    def get_hillclimb_total_time():
+        return HillClimb.total_hill_climb_time
+    @staticmethod
+    def get_hillclimb_times_called():
+        return HillClimb.times_called
