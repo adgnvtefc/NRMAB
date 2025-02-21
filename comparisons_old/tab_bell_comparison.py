@@ -15,12 +15,12 @@ from algorithms.tabularbellman import TabularBellman  # Assume tabular Q-learnin
 # Parameters
 NUM_NODES = 15
 NUM_EDGES = 45
-NUM_SIMULATIONS = 100
+NUM_SIMULATIONS = 50
 NUM_TIMESTEPS = 15
 NUM_ACTIONS = 2  # number of nodes to activate each timestep
-CASCADE_PROB = 0.1
+CASCADE_PROB = 0.05
 GAMMA = 0.9  # discount factor for DQN
-STOP_PERCENT = 0.5
+STOP_PERCENT = 0.8
 
 
 def build_node_obj_to_id_mapping(graph):

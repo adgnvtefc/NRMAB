@@ -7,6 +7,7 @@ import numpy as np
 from math import comb
 from tqdm import tqdm
 import random
+import time
 
 #how the Q table works:
 #each entry in the table represents the Q value -- the action value function, in a particular state

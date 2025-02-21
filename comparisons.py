@@ -235,6 +235,7 @@ class Comparisons:
             print("dqn")
             print(get_dqn_total_time())
             print(get_dqn_times_called())
+
         
         return trials       
 

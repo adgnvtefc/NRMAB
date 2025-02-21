@@ -7,23 +7,26 @@ from networkvis import NetworkVis as nv
 from comparisons import Comparisons 
 from plotting import plot_trials
 
-graph = ns.build_graph_from_edgelist("./graphs/India.txt", value_low=1, value_high=2)
-pos = nx.spring_layout(graph)  # Positioning of nodes
 
 
-algorithms = ['dqn', 'hillclimb', 'whittle', 'none']
+algorithms = ['dqn', 'tabular', 'whittle', 'none']
 #ALL PREVIOUS EXPERIMENTS RAN WITH 30 ACTIONS
-NUM_ACTIONS = 30
+NUM_ACTIONS = 2
 NUM_COMPARISONS = 50
 CASCADE_PROB = 0.05
 GAMMA = 0.8
 TIMESTEPS = 30
 TIMESTEP_INTERVAL=5
+graph = ns.init_random_graph(15,45,1,2)
+pos = nx.spring_layout(graph)  # Positioning of nodes
+
 comp = Comparisons()
+comp.train_tabular(graph, NUM_ACTIONS, GAMMA)
 print("whit")
 comp.train_whittle(graph, GAMMA)
 print("tle")
 comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
+
 
 metadata = {"algorithms": algorithms,
             "initial_graph": graph,
