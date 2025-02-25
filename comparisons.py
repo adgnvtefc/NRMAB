@@ -105,11 +105,11 @@ class Comparisons:
             "gamma": 0.8 #arbitrary
         }
         env = GraphEnv(config)
-        input_dim = 6
+        input_dim = 7
         hidden_dim = 16
         output_dim = 1
         model = GraphQ(input_dim, hidden_dim, output_dim)
-        model.train(env, num_episodes=50)
+        model.train(env, num_episodes=200)
         self.models["graph"] = model
 
 
