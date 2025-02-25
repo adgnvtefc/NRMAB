@@ -109,7 +109,7 @@ class Comparisons:
         hidden_dim = 16
         output_dim = 1
         model = GraphQ(input_dim, hidden_dim, output_dim)
-        model.train(env, num_episodes=200)
+        model.train(env, num_episodes=150)
         self.models["graph"] = model
 
 
