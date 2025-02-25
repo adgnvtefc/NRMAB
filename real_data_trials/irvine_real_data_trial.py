@@ -7,7 +7,7 @@ from networkvis import NetworkVis as nv
 from comparisons import Comparisons 
 from plotting import plot_trials
 
-graph = ns.build_graph_from_edgelist("./graphs/irvine_reindexed.txt", value_low=1, value_high=2)
+graph = ns.build_graph_from_edgelist("../graphs/irvine_reindexed.txt", value_low=1, value_high=2)
 print(graph)
 pos = nx.spring_layout(graph)  # Positioning of nodes
 algorithms = ['dqn', 'hillclimb', 'none']
@@ -20,7 +20,7 @@ TIMESTEPS = 30
 TIMESTEP_INTERVAL=5
 comp = Comparisons()
 comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
-#comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
+comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
 
 metadata = {"algorithms": algorithms,
             "initial_graph": graph,
