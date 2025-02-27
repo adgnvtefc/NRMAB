@@ -9,6 +9,8 @@ __pycache__/
 
 #Less Relevant Files 
 OTHER/
+comparisons_old/
+example_comparison_usage/
 
 # Virtual environment
 .venv/

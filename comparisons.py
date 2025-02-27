@@ -50,11 +50,13 @@ class Comparisons:
         print("Training DQN agent with normal reward function...")
         #t_0 = timeit.default_timer()
         model_normal, policy_normal = train_dqn_agent(config_normal, num_actions, num_epochs=3)
-        t_1 = timeit.default_timer()
+        #t_1 = timeit.default_timer()
         #elapsed = t_1 - t_0 #in nanoseconds
         #print(f"elapsed time: {elapsed} nanoseconds")
         self.models['dqn'] = model_normal
-
+        return model_normal
+    
+    #WARNING OUTDATED
     def train_tabular(self, initial_graph, num_actions, gamma):
         tab_bell = TabularBellman(initial_graph, num_actions=num_actions, gamma=gamma, alpha=0.8)
             #assuming these stats don't change
@@ -111,6 +113,7 @@ class Comparisons:
         model = GraphQ(input_dim, hidden_dim, output_dim)
         model.train(env, num_episodes=200)
         self.models["graph"] = model
+        return model
 
 
 

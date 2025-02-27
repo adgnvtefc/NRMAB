@@ -41,7 +41,7 @@ class QNet(nn.Module):
 
 # Define the custom policy
 class CustomQPolicy(BasePolicy):
-    def __init__(self, model, optim, action_dim, k=5, gamma=0.99, epsilon=1.0):
+    def __init__(self, model, optim, action_dim, k=5, gamma=0.99, epsilon=1.0, epsilon_decay=0.99999, epsilon_min=0.2):
         super().__init__(action_space=gym.spaces.MultiBinary(action_dim))
         self.model = model
         self.optim = optim
@@ -49,6 +49,9 @@ class CustomQPolicy(BasePolicy):
         self.action_dim = action_dim
         self._gamma = gamma
         self.epsilon = epsilon  # Epsilon for epsilon-greedy exploration
+        self.epsilon_decay = epsilon_decay
+        self.lr = 0.00005
+        self.epsilon_min = epsilon_min
 
     def forward(self, batch, state=None):
         obs = batch.obs  # Shape: [batch_size, state_dim]
@@ -178,9 +181,10 @@ class TrainStepResult:
     def get_loss_stats_dict(self) -> Dict[str, float]:
         return {'loss': self.loss}
 
-
 def train_dqn_agent(config, num_actions, num_epochs=3):
     # Set up environment
+    start_time = time.perf_counter()
+
     def get_env():
         return NetworkInfluenceEnv(config)
     
@@ -201,7 +205,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
     action_dim = config['num_nodes']
 
     model = QNet(state_dim, action_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
     policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
 
     # Set up collectors
@@ -225,7 +229,16 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
         logger=logger
     ).run()
 
+    end_time = time.perf_counter()
+    
+    time_taken = end_time - start_time
+    train_dqn_agent.time = time_taken
+
     return model, policy
+
+train_dqn_agent.time = 0
+def get_train_dqn_agent_time():
+    return train_dqn_agent.time
 
 def select_action_dqn(graph, model, num_actions):
     """

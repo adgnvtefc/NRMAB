@@ -53,9 +53,13 @@ class TabularBellman:
                             action_index = np.argmax(self.qtable[state_index])
 
                         action = self.all_action_combinations[action_index]
+                        graph = self.get_graph_from_state(state_index)
+                        #action_nodes = [graph.nodes[node_idx]['obj'] for node_idx in action]
 
                         # Simulate one step in the environment
-                        next_graph, reward = self.simulate_step(state_index, action)
+                        #next_graph, reward = self.simulate_step(state_index, action)
+                        reward = ns.action_value_function(graph, action, self.num_actions, 0.05, self.gamma, horizon=1, max_horizon=1, num_samples=1)
+                        next_graph = ns.simulate_next_state(graph, action, 0.05)
 
                         # Determine next state
                         next_state_index = self.calculate_state_table_pos(next_graph)
@@ -73,6 +77,54 @@ class TabularBellman:
 
                 # Update episode progress
                 outer_pbar.update(1)
+    def fill_q_table(self):
+        """
+        Visit all possible (state, action) pairs exactly once and perform a single Q-learning update.
+        This guarantees that no entry in the Q-table remains unvisited.
+        
+        Caveat:
+        - For large num_nodes, enumerating 2^num_nodes states becomes infeasible.
+        - This does only one update per state-action pair. 
+        For better convergence, you may want multiple passes or additional training with 'update_q_table'.
+        """
+        total_pairs = self.num_states * self.num_actions_total
+        
+        with tqdm(total=total_pairs, desc="Filling Q-table", unit="pair") as pbar:
+            for state_index in range(self.num_states):
+                # 1. Reconstruct the graph for this state
+                graph = self.get_graph_from_state(state_index)
+                
+                # 2. Iterate through ALL possible action combinations
+                for action_index, action in enumerate(self.all_action_combinations):
+                    # -- (a) Calculate the immediate reward from taking this action
+                    reward = ns.action_value_function(
+                        graph, 
+                        action, 
+                        self.num_actions, 
+                        0.05,         # or your chosen probability
+                        self.gamma, 
+                        horizon=1, 
+                        max_horizon=1, 
+                        num_samples=1
+                    )
+                    
+                    # -- (b) Simulate the next state
+                    next_graph = ns.simulate_next_state(graph, action, 0.05)
+                    next_state_index = self.calculate_state_table_pos(next_graph)
+                    
+                    # -- (c) Perform the standard Bellman (Q-learning) update
+                    current_Q = self.qtable[state_index, action_index]
+                    best_next_Q = np.max(self.qtable[next_state_index])
+                    
+                    self.qtable[state_index, action_index] = (
+                        current_Q 
+                        + self.alpha * (reward + self.gamma * best_next_Q - current_Q)
+                    )
+                    
+                    # -- (d) Progress bar update
+                    pbar.update(1)
+        
+        print("Q-table fill completed: every (state, action) visited exactly once.")
     
     def simulate_step(self, state_index, action):
         """
@@ -83,7 +135,7 @@ class TabularBellman:
         """
         graph = self.get_graph_from_state(state_index)
 
-        # Activate chosen nodes
+        # Select nodes to perform active action on
         action_nodes = [graph.nodes[node_idx]['obj'] for node_idx in action]
 
         # Exempt nodes that were just activated

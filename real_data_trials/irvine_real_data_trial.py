@@ -6,11 +6,57 @@ from networkSim import NetworkSim  as ns
 from networkvis import NetworkVis as nv
 from comparisons import Comparisons 
 from plotting import plot_trials
+import torch
+import pickle
 
-graph = ns.build_graph_from_edgelist("../graphs/irvine_reindexed.txt", value_low=1, value_high=2)
+def save_graph_model(model, filename="graph_model.pth"):
+    """
+    Save the entire GraphQ model:
+     - GNN weights
+     - Optimizer state
+     - Current epsilon
+     - Etc.
+    """
+    checkpoint = {
+        # The GCN part's parameters
+        "gnn_state_dict": model.gnn.state_dict(),
+        
+        # The optimizer’s parameters
+        "optimizer_state_dict": model.optimizer.state_dict(),
+        
+        # Additional fields you might want to store
+        "epsilon": model.epsilon,
+        "epsilon_decay": model.epsilon_decay,
+        "epsilon_min": model.epsilon_min,
+        "gamma": model.gamma,
+        "lr": model.lr
+    }
+    
+    torch.save(checkpoint, filename)
+    print(f"GraphQ model saved to {filename}")
+
+
+
+
+graph = ns.build_graph_from_edgelist("./graphs/irvine_reindexed.txt", value_low=1, value_high=2)
 print(graph)
+
+# with open('test.gpickle', 'rb') as f:
+#     graph = pickle.load(f)
+
+# print(graph.nodes())
+# print(graph.edges())
+
+with open('test.gpickle', 'wb') as f:
+    pickle.dump(graph, f, pickle.HIGHEST_PROTOCOL)
+
 pos = nx.spring_layout(graph)  # Positioning of nodes
-algorithms = ['dqn', 'hillclimb', 'none']
+algorithms = [
+    'graph', 
+    'dqn', 
+    'whittle', 
+    'hillclimb', 
+    'none']
 #ALL PREVIOUS EXPERIMENTS RAN WITH 30 ACTIONS
 NUM_ACTIONS = 100
 NUM_COMPARISONS = 50
@@ -19,8 +65,14 @@ GAMMA = 0.8
 TIMESTEPS = 30
 TIMESTEP_INTERVAL=5
 comp = Comparisons()
-comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
-comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
+
+g_model = comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
+save_graph_model(g_model, "graph_q_checkpoint.pth")
+
+dqn_model = comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
+torch.save(dqn_model.state_dict(), "dqn_model.pth")
+
+comp.train_whittle(graph, GAMMA)
 
 metadata = {"algorithms": algorithms,
             "initial_graph": graph,
