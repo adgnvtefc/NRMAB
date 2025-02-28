@@ -13,19 +13,15 @@ from networkSim import NetworkSim as ns
 def convert_nx_to_pyg(G: nx.Graph, last_action_indices=None) -> Data:
     """
     Convert a NetworkX graph to a PyG Data object.
-    If last_action_indices is provided, we'll use it to set
-    the 7th feature = 1 for the node(s) that were acted on.
+    If last_action_indices is provided, we set the 7th feature=1 for those nodes.
     """
     for n in G.nodes():
         node_obj = G.nodes[n]['obj']
 
-        # Check if this node was in the action list
-        if last_action_indices is not None and n in last_action_indices:
-            was_acted_on = 1.0
-        else:
-            was_acted_on = 0.0
+        # Mark if acted on
+        was_acted_on = 1.0 if (last_action_indices is not None and n in last_action_indices) else 0.0
 
-        # Create each node's feature vector (now length 7)
+        # Create each node's feature vector (7-dim)
         G.nodes[n]['x'] = torch.tensor([
             float(node_obj.isActive()),
             node_obj.getValue(),
@@ -33,7 +29,7 @@ def convert_nx_to_pyg(G: nx.Graph, last_action_indices=None) -> Data:
             node_obj.active_activation_passive,
             node_obj.passive_activation_active,
             node_obj.passive_activation_passive,
-            was_acted_on,  # 7th feature
+            was_acted_on,
         ], dtype=torch.float)
 
     data = from_networkx(G)
@@ -47,19 +43,15 @@ class GraphEnv(gym.Env):
         self.cascade_prob = config['cascade_prob']
         self.stop_percent = config['stop_percent']
         self.reward_function = config['reward_function']
-        self.gamma = 0.8
-        self.reward_mult = 1
+        self.gamma = config.get('gamma', 0.99)
 
         self.original_graph = config['graph']
         self.latest_step_reward = 0
 
-        # We'll store the most recent list of activated node indices here
         self.last_action_indices = None
 
-        # Action space: pick which node to activate (single choice for now)
         self.action_space = spaces.Discrete(n=self.num_nodes, start=0)
 
-        # Observation space: now shape=(num_nodes, 7) for x
         self.observation_space = spaces.Dict({
             "x": spaces.Box(
                 low=-np.inf,
@@ -83,9 +75,7 @@ class GraphEnv(gym.Env):
             np.random.seed(seed)
         self.graph = copy.deepcopy(self.original_graph)
         self.state = np.zeros(self.num_nodes, dtype=np.int8)
-        self.reward_mult = 1
 
-        # No last action at the beginning
         self.last_action_indices = None
 
         observation = self._get_obs()
@@ -93,31 +83,28 @@ class GraphEnv(gym.Env):
         return observation, info
 
     def _get_obs(self):
-        # Convert to PyG Data, pass last_action_indices so we
-        # can set the 7th feature in node attributes
         pyg_data = convert_nx_to_pyg(self.graph, self.last_action_indices)
         return {
-            "x": pyg_data.x.numpy(),             # shape: (num_nodes, 7)
-            "edge_index": pyg_data.edge_index.numpy()  # shape: (2, num_edges)
+            "x": pyg_data.x.numpy(),
+            "edge_index": pyg_data.edge_index.numpy()
         }
 
     def _get_info(self):
         return {"reward": self.latest_step_reward}
 
     def step(self, action):
-        # If you're taking only a single action, wrap it in a list
         action_indices = [action]
 
         reward = ns.action_value_function(
-            self.graph, action,
+            self.graph,
+            action,
             num_actions=1,
             cascade_prob=self.cascade_prob,
             gamma=self.gamma,
             horizon=1,
             num_samples=1
         )
-        reward *= self.reward_mult
-        self.reward_mult -= 0.02
+        # Removed the line that decayed rewards over time
         self.latest_step_reward = reward
 
         # Update graph state
@@ -126,15 +113,13 @@ class GraphEnv(gym.Env):
         ns.independent_cascade_allNodes(self.graph, self.cascade_prob)
         ns.rearm_nodes(self.graph)
 
-        # Update which nodes are active
         self.state = np.array([
-            int(self.graph.nodes[i]['obj'].isActive()) for i in self.graph.nodes()
+            int(self.graph.nodes[i]['obj'].isActive())
+            for i in self.graph.nodes()
         ])
 
-        # Store the current step's action_indices so _get_obs() can show it
         self.last_action_indices = action_indices
 
-        # Check termination condition
         terminated = (
             sum(self.state) >= self.stop_percent * self.num_nodes
         )
