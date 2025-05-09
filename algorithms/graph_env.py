@@ -43,7 +43,7 @@ class GraphEnv(gym.Env):
         self.cascade_prob = config['cascade_prob']
         self.stop_percent = config['stop_percent']
         self.reward_function = config['reward_function']
-        self.gamma = config.get('gamma', 0.99)
+        self.gamma = config.get('gamma', 0.8)
 
         self.original_graph = config['graph']
         self.latest_step_reward = 0

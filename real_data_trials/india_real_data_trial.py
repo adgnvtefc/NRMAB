@@ -13,7 +13,7 @@ pos = nx.spring_layout(graph)  # Positioning of nodes
 
 algorithms = ['graph', 'dqn', 'hillclimb', 'none']
 #ALL PREVIOUS EXPERIMENTS RAN WITH 30 ACTIONS
-NUM_ACTIONS = 30
+NUM_ACTIONS = 100
 NUM_COMPARISONS = 50
 CASCADE_PROB = 0.05
 GAMMA = 0.8
