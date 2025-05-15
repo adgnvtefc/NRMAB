@@ -213,7 +213,8 @@ def aggregate_history(
     output_dir="results",
     plot_cumulative_for=("reward",),
     file_prefix="comparison",
-    textwidth_inches=7.0
+    textwidth_inches=7.0,
+    auto_scale=False
 ):
     """
     Aggregated history plots with identical style
@@ -236,7 +237,8 @@ def aggregate_history(
         ax.spines['right'].set_visible(False)
         ax.grid(False)
 
-    width, height = textwidth_inches, textwidth_inches * 0.6
+    # width, height = textwidth_inches, textwidth_inches * 0.6
+    width, height = textwidth_inches, 7 * 0.6
     for m in hist_metrics:
         fig, ax = plt.subplots(figsize=(width, height))
         fig.subplots_adjust(left=0.15, right=0.95, bottom=0.15, top=0.88)
@@ -262,7 +264,10 @@ def aggregate_history(
                 alpha=0.2,
                 color=colors[a]
             )
-        ax.set_title(f"Mean ± STD {m.replace('_',' ').title()} vs. Timestep")
+        if auto_scale and finals:
+            lo, hi = min(finals), max(finals)
+            margin = 0.1 * (hi - lo) if hi > lo else lo * 0.1
+            ax.set_ylim(lo - margin, hi + margin)    
         ax.set_xlabel("Timestep")
         ax.set_ylabel(m.replace('_',' ').title())
         style_ax(ax)
@@ -296,7 +301,11 @@ def aggregate_history(
                 alpha=0.2,
                 color=colors[a]
             )
-        ax.set_title(f"Cumulative {m.replace('_',' ').title()} vs. Timestep")
+        if auto_scale and finals:
+            lo, hi = min(finals), max(finals)
+            margin = 0.1 * (hi - lo) if hi > lo else lo * 0.1
+            ax.set_ylim(lo - margin, hi + margin)
+
         ax.set_xlabel("Timestep")
         ax.set_ylabel(f"Cumulative {m.replace('_',' ').title()}")
         style_ax(ax)

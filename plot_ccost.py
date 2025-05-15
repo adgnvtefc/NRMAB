@@ -119,6 +119,9 @@ def plot_compute_cost(
     style_ax(ax)
     ax.legend(frameon=False)
 
+    ax.set_xticks(nodes)
+    ax.set_xlim(nodes[0], nodes[-1])
+
     # Save as PDF
     out_path = os.path.join(output_dir, f"{file_name}.pdf")
     fig.savefig(out_path, format='pdf', dpi=300)
