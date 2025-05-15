@@ -14,6 +14,8 @@ import os
 from dataclasses import dataclass
 from typing import Dict
 import time
+from typing import Dict, Iterator, Tuple
+
 
 log_path = os.path.join('logs', 'dqn')
 writer = SummaryWriter(log_path)
@@ -41,7 +43,7 @@ class QNet(nn.Module):
 
 # Define the custom policy
 class CustomQPolicy(BasePolicy):
-    def __init__(self, model, optim, action_dim, k=5, gamma=0.99, epsilon=1.0):
+    def __init__(self, model, optim, action_dim, k=5, gamma=0.95, epsilon=1.0):
         super().__init__(action_space=gym.spaces.MultiBinary(action_dim))
         self.model = model
         self.optim = optim
@@ -178,8 +180,29 @@ class TrainStepResult:
     def get_loss_stats_dict(self) -> Dict[str, float]:
         return {'loss': self.loss}
 
+    def keys(self) -> Tuple[str, ...]:
+        return ("loss",)
+
+    def __getitem__(self, key: str) -> float:
+        if key == "loss":
+            return self.loss
+        raise KeyError(f"TrainStepResult does not contain key: {key}")
+
+    def __setitem__(self, key: str, value: float) -> None:
+        if key == "loss":
+            self.loss = value
+        else:
+            raise KeyError(f"TrainStepResult does not contain key: {key}")
+    
+    def items(self) -> Iterator[Tuple[str, float]]:
+        for k in self.keys():
+            yield k, self[k]
+    
+
 
 def train_dqn_agent(config, num_actions, num_epochs=3):
+    start_time = time.perf_counter()
+
     # Set up environment
     def get_env():
         return NetworkInfluenceEnv(config)
@@ -191,7 +214,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
         return False
 
     def train_fn(epoch, env_step):
-        epsilon = max(0.1, 1 - env_step / 100_000)  # Linear decay
+        epsilon = max(0.1, 1 - env_step / 50000)  # Linear decay
         policy.epsilon = epsilon
     def test_fn(epoch, env_step):
         pass
@@ -201,7 +224,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
     action_dim = config['num_nodes']
 
     model = QNet(state_dim, action_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
 
     # Set up collectors
@@ -212,11 +235,11 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
     result = OffpolicyTrainer(
         policy=policy,
         train_collector=train_collector,
-        test_collector=test_collector,
+        test_collector=None,
         max_epoch=num_epochs,
         step_per_epoch=1000,
         step_per_collect=50,
-        episode_per_test=10,
+        episode_per_test=0,
         batch_size=64,
         update_per_step=0.1,
         train_fn=train_fn,
@@ -225,7 +248,16 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
         logger=logger
     ).run()
 
+    end_time = time.perf_counter()
+    
+    time_taken = end_time - start_time
+    train_dqn_agent.time = time_taken
+
     return model, policy
+
+train_dqn_agent.time = 0
+def get_train_dqn_agent_time():
+    return train_dqn_agent.time
 
 def select_action_dqn(graph, model, num_actions):
     """

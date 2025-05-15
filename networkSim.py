@@ -18,7 +18,7 @@ class NetworkSim:
             active_activation_active_action = round(random.uniform(0.8, 1.0), 4)
             active_activation_passive_action = round(random.uniform(0.7, active_activation_active_action), 4)
 
-            passive_activation_active_action = round(random.uniform(0.5, 1.0), 4)
+            passive_activation_active_action = round(random.uniform(0.5, 1), 4)
             passive_activation_passive_action = round(random.uniform(0.0, passive_activation_active_action), 4)
 
             # UPDATE: CAN NOW GENERATE NON-INT VALUES

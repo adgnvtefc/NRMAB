@@ -88,7 +88,7 @@ def compute_whittle_for_node(node_id, transition_matrix, discount, node_value,
 
 class WhittleIndexPolicy:
     def __init__(self, transitions, node_values, discount=0.99,
-                 subsidy_break=0.0, eps=1e-4):
+                 subsidy_break=0.0, eps=1e-4, device=None):
         """
         Single-threaded WhittleIndexPolicy.
 
@@ -97,6 +97,7 @@ class WhittleIndexPolicy:
         :param discount: discount factor
         :param subsidy_break: threshold to treat negative WIs
         :param eps: tolerance for bisection and value iteration
+        :param device: (optional) ignored, for compatibility
         """
         self.transitions = transitions
         self.node_values = node_values

@@ -1,69 +1,89 @@
-import networkx as nx
-import sys
-import os
-import pickle
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from networkSim import NetworkSim  as ns
-from networkvis import NetworkVis as nv
-from comparisons import Comparisons 
-from plotting import plot_trials
+#!/usr/bin/env python3
+# Combined Irvine parameters with India-style execution approach
 
 import torch
-print(torch.cuda.is_available())  # Should return True if CUDA is available
-print(torch.version.cuda)  # Shows the installed CUDA version (if any)
+import os
+import sys
+import networkx as nx
 
-# graph = ns.build_graph_from_edgelist("../graphs/irvine_reindexed.txt", value_low=1, value_high=2)
-# use gpickle to save and load graph
-with open("test.gpickle", "rb") as f:
-    graph = pickle.load(f)
+print("CUDA available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+    print("Current device index:", torch.cuda.current_device())
+    print("GPU name:", torch.cuda.get_device_name(device))
+else:
+    device = torch.device("cpu")
+print()  # Separator
 
-# Verify the loaded graph
-print(graph.nodes(data=True))  # Outputs nodes and their attributes
-print(graph.edges())  # Outputs edges
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from networkSim import NetworkSim as ns
+from networkvis import NetworkVis as nv
+from comparisons import Comparisons
+from plotting import plot_trials
 
-print(graph)
-pos = nx.spring_layout(graph)  # Positioning of nodes
-algorithms = ['graph', 'dqn', 'hillclimb', 'none']
-#ALL PREVIOUS EXPERIMENTS RAN WITH 30 ACTIONS
+graph = ns.build_graph_from_edgelist(
+    "graphs/irvine_reindexed.txt",
+    value_low=1,
+    value_high=2
+)
+pos = nx.spring_layout(graph)
+
+algorithms = ['graph', 'dqn', 'hillclimb','whittle','none']
 NUM_ACTIONS = 50
 NUM_COMPARISONS = 50
 CASCADE_PROB = 0.05
 GAMMA = 0.8
 TIMESTEPS = 30
-TIMESTEP_INTERVAL=5
-comp = Comparisons()
-comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB)
+TIMESTEP_INTERVAL = 5
+
+comp = Comparisons(device=device)
+
+print("Starting train_graph")
+comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB, GAMMA)
+print("Finished train_graph")
+
+print("Starting train_whittle")
+comp.train_whittle(graph, GAMMA)
+print("Finished train_whittle")
+
+print("Starting train_dqn")
 comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
-# comp.train_whittle(graph, GAMMA)
+print("Finished train_dqn")
 
-metadata = {"algorithms": algorithms,
-            "initial_graph": graph,
-            "num_comparisons": NUM_COMPARISONS,
-            "num_actions": NUM_ACTIONS,
-            "cascade_prob": CASCADE_PROB,
-            "gamma": GAMMA,
-            "timesteps": TIMESTEPS}
+metadata = {
+    "algorithms": algorithms,
+    "initial_graph": graph,
+    "num_comparisons": NUM_COMPARISONS,
+    "num_actions": NUM_ACTIONS,
+    "cascade_prob": CASCADE_PROB,
+    "gamma": GAMMA,
+    "timesteps": TIMESTEPS
+}
 
-results = (comp.run_many_comparisons(
-    algorithms=algorithms, 
-    initial_graph=graph, 
-    num_comparisons=NUM_COMPARISONS, 
+results = comp.run_many_comparisons(
+    algorithms=algorithms,
+    initial_graph=graph,
+    num_comparisons=NUM_COMPARISONS,
     num_actions=NUM_ACTIONS,
-    cascade_prob=CASCADE_PROB, 
-    gamma=GAMMA, 
-    timesteps=TIMESTEPS, 
-    timestep_interval=TIMESTEP_INTERVAL))
+    cascade_prob=CASCADE_PROB,
+    gamma=GAMMA,
+    timesteps=TIMESTEPS,
+    timestep_interval=TIMESTEP_INTERVAL,
+    device=device
+)
 
 plot_trials(
-    results, 
-    output_dir="results", 
-    plot_cumulative_for=("reward",),  # tuple of metrics you want to also plot cumulatively
+    results,
+    output_dir="results",
+    plot_cumulative_for=("reward",),  # tuple of metrics to plot cumulatively
     file_prefix="comparison",
-    metadata=metadata)         # prefix for output filed
+    metadata=metadata
+)
 
-print(algorithms)
-print(f"num comparisons: {NUM_COMPARISONS}")
-print(f"num actions: {NUM_ACTIONS}")
-print(f"cascade prob: {CASCADE_PROB}")
-print(len(graph.nodes))
-print(len(graph.edges))
+print("Algorithms:", algorithms)
+print(f"Num comparisons: {NUM_COMPARISONS}")
+print(f"Num actions: {NUM_ACTIONS}")
+print(f"Cascade prob: {CASCADE_PROB}")
+print(f"Gamma: {GAMMA}")
+print("Num nodes:", len(graph.nodes))
+print("Num edges:", len(graph.edges))
