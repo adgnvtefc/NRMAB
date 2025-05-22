@@ -1,17 +1,14 @@
 import copy
 import torch
-import inspect
 from algorithms.hillClimb import HillClimb
 from algorithms.deepq import train_dqn_agent, select_action_dqn, get_dqn_total_time, get_dqn_times_called
 from algorithms.whittle import WhittleIndexPolicy
 from algorithms.tabularbellman import TabularBellman 
-from algorithms.NEW_GraphQ import GraphQ
-from algorithms.graph_env import GraphEnv
+from algorithms.graphq import GraphQ
+from algorithms.graphq_env import GraphEnv
 from networkSim import NetworkSim as ns
-import networkx as nx
 import numpy as np
 import random
-import timeit  # for timing the runtime of various training algorithms
 
 
 class Comparisons:
@@ -202,8 +199,3 @@ class Comparisons:
         data[alg]['cumulative_active_nodes'].append(cum_prev+active)
         data[alg]['percent_activated'].append((active/total)*100)
         data[alg]['reward'].append(ns.reward_function(graph, seed=None))
-
-    # Added for debugging signature
-    def debug_signature(self):
-        import inspect
-        print("Comparisons.__init__ signature:", inspect.signature(self.__init__))

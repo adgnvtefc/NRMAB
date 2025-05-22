@@ -1,1 +1,0 @@
-setting samples of action values to 3 improves the thing but not significantly

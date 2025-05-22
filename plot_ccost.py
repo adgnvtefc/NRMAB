@@ -1,7 +1,6 @@
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
-from datetime import datetime
 
 # Seaborn and matplotlib style
 sns.set_style('white')

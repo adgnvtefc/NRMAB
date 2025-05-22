@@ -1,1 +1,0 @@
-This is using DQN trained in 10 epochs instead of 3 -- evidently, improvement is minimal

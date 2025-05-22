@@ -1,7 +1,0 @@
-algorithms: ['dqn', 'hillclimb', 'none']
-initial_graph: Graph with 410 nodes and 2765 edges
-num_comparisons: 50
-num_actions: 30
-cascade_prob: 0.05
-gamma: 0.8
-timesteps: 30
