@@ -1,42 +1,59 @@
-# NetworkSimVisualization
+## Introduction
+This is the source code used to run the experiments in *Networked Restless Multi-Arm Bandits with
+Reinforcement Learning*. 
 
-Work in progress
+## Usage Instructions
 
-Requirements in `requirement.txt`
+1. Create and activate a virtual environment
+2. Install core dependencies using pip install -r requirements.txt
+3. To replicate experimental results, run `python india_real_data_trial.py`, `python dqn_v_tabular.py`, or `python plot_ccost.py` respectively.
 
-SEE Changelog for week-to-week updates
+**Note that due to stochasticity in graph generation, experimental results may not be able to be exactly replicated. However, approximate results should uphold experimental validity.**
 
-# Network Simulation with Reinforcement Learning
+## Experiments
 
-This project implements a network simulation using reinforcement learning techniques to determine optimal actions for node activation. The simulation models how nodes in a network can be activated or deactivated based on probabilities, and how actions taken at each timestep can affect the future state of the network. The goal is to determine an optimal strategy for activating nodes to maximize rewards in a dynamic network environment.
+Below are the three scripts used to produce the data for figures 2, 3, and 4 in that order:
 
-## Project Structure
+| Script | What it shows | 
+|--------|---------------|
+| **`india_real_data_trial.py`** | **Real‑world India contact graph**<br>Compares 5 strategies (GNN, DQN, 1-step lookahead, Whittle index, and a “no‑action” baseline) on the same static network. Outputs PDF reward curves and CSV logs in `real_data_trials/`.| 
+| **`dqn_v_tabular.py`** | **Synthetic toy graphs** (10‑node random) to contrast learning vs. exhaustive lookup.<br>Runs **DQN**, **Tabular Bellman**, and **GNN‑DQN** for 10 independent seeds, plots reward trajectories to `results/`.|
+| **`plot_ccost.py`** | **Computational cost sweep**: renders the time‑per‑epoch of Tabular, DQN, and GNN agents as a function of graph size (2 → 11 nodes). Produces `*.pdf` files under `real_data_trials/c_cost/`. | 
 
-The project is composed of several key components. The key network simulations, built on top of the `networkx` library, functions as follows:
-- `networkSim.py` defines crucial functions in creating, facilitating state changes, and collecting data from the network.
-- `networkvis.py` contains helper functions in visualizing the network using the `matplotlib` library
-- `simpleNode.py` defines the custome node data type that is used in our networks
-- `comparisons.py` streamlines performance comparison of multiple algorithms
-- `plotting.py` streamlines visualization of data collected from `comparisons.py`
-- `real_data_trial.py` is an example comparing DQN and Hill Climbing algorithms using the aforementioned modules.
+## NRMAB Algorithms in `/algorithms`
 
-Algorithms can be found in the `algorithms` folder. Implemented algorithms include:
-- DQN with Hill Climbing: uses a DQN to predict Q(s,a) for each individual action in a state, then uses greedy hill-climbing to select the top k actions with the highest predicted Q values. Found in `deepq.py` with `deep_q_env.py` supporting.
-- Naive Hill Climbing (K step look ahead): uses Greedy Hill Climbing with either Bellman's equation (only works for small graphs) or probability-informed deterministic action value calculation to select top k actions. Found in `hillClimb.py`.
-- Tabular Bellman: uses tabular Q learning to select top k actions. Only works for small graph sizes. Found in `tabularbellman.py`.
-- Whittle Index: calculates the Whittle Index used in traditional network-blind RMABs. Often used as baseline comparison. Found in `whittle.py`. (NOTE: temporarily dysfunctional after refactoring due to probably multithreading shenanigans)
-New algorithms may be added in time. `comparisons.py` should be updated concurrently as new algorithms are introduced. 
+| Algorithm | File | Highlights |
+|-----------|------|------------|
+| **Deep Q‑Network** | `algorithms/deepq.py` | vanilla feed‑forward Q‑net with ε‑greedy K‑step action construction, trained with [Tianshou] collectors and TensorBoard logging.|
+| **Graph Neural Netowrk** | `algorithms/graphq.py` | deeper GCN backbone, Double DQN + Prioritised Replay; operates on PyTorch‑Geometric graphs. |
+| **1-step lookahead** | `algorithms/hillClimb.py` | fast greedy scorer plus an exact Bellman variant for small horizons. |
+| **Tabular Bellman** | `algorithms/tabularbellman.py` | exhaustive Q‑table with enumerated binary node states; useful for ground‑truth on toy graphs.|
+| **Whittle Index policy** | `algorithms/whittle.py` | single‑threaded Whittle‑index calculator for restless‑bandit style node models. |
 
-## Data
+The environments live in:
 
-Real-world data used to create graph structures is in `graphs`. While networks are created from that data, individual node properties and cascade probabilities are independently defined.
+* **`algorithms/deepq_env.py`** – binary multi‑action space (`MultiBinary`) where an agent seeds *k* nodes per step. :contentReference[oaicite:5]{index=5}  
+* **`algorithms/graphq_env.py`** – single‑action space with rich 10‑dim node features exported as a PyG `Data` object. :contentReference[oaicite:6]{index=6}  
 
-## Examples
+## Graphs
 
-For a visual representation of a graph and algorithm, see `visualized_simulations`. Some modules prefaced with `OLD` may be outdated. Modules not prefaced as such may still be outdated. Hopefully they work as intended.
+`graphs/India.txt` contains the raw graph edge‑list (whitespace‑separated `src dst` pairs) used in `india_real_data_trial.py`.
 
-Example comparison can be found in `example_comparison_usage` (NOTE: outdated) and `real_data_trial.py`. Results to the real data trial can be found in `results` folders.
+| File | Description |
+|------|-------------|
+| **India.txt** | 202‑node, 692‑edge undirected call‑graph of a contact network in an Indian village. Used by `india_real_data_trial.py`.|
 
-## Old
+## Helper Utilities
 
-`comparisons_old` contains the old code for comparing algorithms. In case you ever wondered why `comparisons.py` is necessary, look into that folder. It is not pretty. You have been warned.
+These modules sit behind the RL agents and experiments in this repository.  
+They generate graphs, run large‑scale comparisons, and produce publication‑quality plots.
+
+| Module | Purpose | 
+|--------|---------|
+| **`comparisons.py`** | Orchestrates **training and evaluation** across multiple algorithms (DQN, GNN, Whittle, 1-step lookahead, etc.). Handles model caching, per‑timestep simulation, and aggregates results for plotting.|
+| **`networkSim.py`** | Low‑level **graph simulator**: creates random graphs, executes node‑state transitions, independent‑cascade spread, and Monte‑Carlo look‑ahead value functions.|
+| **`plotting.py`** | **Plotting + history tracker** with an “academic” Matplotlib/Seaborn style. Saves per‑run CSVs, then plots mean ± STD and cumulative metrics across all historical runs.| `plot_trials`, `aggregate_history` |
+| **`simpleNode.py`** | 
+
+## Results
+The full suite of results can be found in `\results`
