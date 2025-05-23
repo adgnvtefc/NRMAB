@@ -6,21 +6,6 @@ class HillClimb:
     total_hill_climb_time = 0.0  # class-level accumulator
     times_called = 0
 
-    #okay this one isn't really hill climb anymore, more like just pure bellman
-    @staticmethod
-    def hill_climb_with_bellman(graph, num=1, gamma=0.7, horizon=3, num_samples=5):
-        seeded_set = set()
-        (utility, action) = ns.state_value_function(graph, num, gamma, horizon, num_samples)
-
-        #inefficiency carried over from previous hill climbing algo
-        #print("Predicted utility gain:" + str(utility))
-
-        for node_index in action:
-            seeded_set.add(graph.nodes[node_index]['obj'])
-        
-        return seeded_set
-        
-
     @staticmethod
     def hill_climb(graph, num=1):
         start_time = time.perf_counter()

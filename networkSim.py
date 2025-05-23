@@ -21,7 +21,6 @@ class NetworkSim:
             passive_activation_active_action = round(random.uniform(0.5, 1), 4)
             passive_activation_passive_action = round(random.uniform(0.0, passive_activation_active_action), 4)
 
-            # UPDATE: CAN NOW GENERATE NON-INT VALUES
             node_value = random.uniform(value_low, value_high)
 
             # Instantiate the SimpleNode with generated probabilities and value
@@ -123,10 +122,7 @@ class NetworkSim:
     #same as above, but takes list of indices of a graph
     @staticmethod
     def active_state_transition_graph_indices(graph, node_indices):
-        #print(graph)
-        #print(node_indices)
         changed = set()
-        #print(node_indices)
         if not hasattr(node_indices, "__iter__"):
                 node_indices = [node_indices]
         for index in node_indices:
@@ -154,8 +150,6 @@ class NetworkSim:
         for node in cascadeNodes:
             neighbors = set(graph.neighbors(node)) - cascadeNodes
             for neighbor in neighbors:
-                #if using different edge weights, just query the list of edges from each neigbor, and query the weight of each edge
-                #relative to the neighbor
                 if not graph.nodes[neighbor]['obj'].isActive():
                     # Attempt to activate neighbor with probability 'edge_weight'
                     if random.random() <= edge_weight:
@@ -178,33 +172,25 @@ class NetworkSim:
     #returns list of tuples of graph indices
     @staticmethod
     def generate_possible_actions(graph, num):
-        #node that these should be node indices in the graph, not node objects
         nodes = [node for node in graph.nodes() if not graph.nodes[node]['obj'].isActive()]
-
-        #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
         return list(itertools.combinations(nodes, num))
 
 
     #same as above but returns node objects instead
     @staticmethod
     def generate_possible_actions_nodes(graph, num):
-        #node that these should be node indices in the graph, not node objects
         nodes = [graph[node]['obj'] for node in graph.nodes()]
-
-        #get a list of num-tuples of inactive nodes to attempt activate. note that there is ZERO heuristic in this step
         return list(itertools.combinations(nodes, num))
 
     
     #finds the rewards of a function given seed
     @staticmethod
     def reward_function(graph, seed):
-        # Count the value of active nodes
         value = 0
         for node in graph.nodes():
             node_obj = graph.nodes[node]['obj']
             if not hasattr(seed, '__iter__'):
                 seed = [seed]
-            # A node is active if it's in the seed or if its object reports it as active
             if (seed is not None and node in seed) or node_obj.isActive():
                 value += node_obj.getValue()
         
@@ -216,17 +202,13 @@ class NetworkSim:
     def state_value_function(graph, num=1, gamma=0.7, horizon=1, max_horizon = None, num_samples=5):
         
         if horizon == 0:
-            # Base case: horizon is 0, return 0
             return (0, None)
         
-        #keep track of our max horizon value
         if max_horizon == None:
             max_horizon = horizon
         
-        # "consume" one horizon point to look a step into the future
         horizon -= 1
 
-        #generate tuples of possible actions to take in this state
         possible_actions = NetworkSim.generate_possible_actions(graph, num)
         sampled_actions = random.sample(possible_actions, min(10, len(possible_actions)))
 
@@ -236,22 +218,10 @@ class NetworkSim:
             value = NetworkSim.action_value_function(graph, action, num_actions=num, gamma=gamma, horizon=horizon, max_horizon=max_horizon, num_samples=num_samples)
             if value > max_value:
                 max_value = value
-                #note that this is INDICES
                 optimal_action = action
         
         return (max_value, optimal_action)
 
-
-    #helper method
-    #this component consists of four components: 
-    # (1) the reward at the current state
-    # (2) the probability of passive transitions to the next state
-    # (3) the probability cascades from that transformaton
-    # (4) the value of that state
-    # since exploring the full state space will take too long, we take a separate approach:
-    # instead of summing over state and action space multiplying by value function, we simulate the graph for multiple iterations,
-    # and take the average reward of each state
-    # this explanation does not make much sense, but you will see what i mean
     @staticmethod
     def action_value_function(graph, action, num_actions=1, cascade_prob = 0.1, gamma=0.99, horizon=3, max_horizon=3, num_samples=10):
         #the rewards for performing the actions specified on the current state
@@ -276,24 +246,18 @@ class NetworkSim:
         return total_value
     
     #helper function to simulate the full next state of the graph
-    #wow the fact that this is so succinct is actually so sexy
     @staticmethod
     def simulate_next_state(graph, action, cascade_prob):
         # Returns a deep copy of the graph representing the next state after simulating transitions
         new_graph = copy.deepcopy(graph)
-
         #simulate passive transition
         NetworkSim.passive_state_transition_without_neighbors(new_graph, action)
         #simulate active transition
         NetworkSim.active_state_transition_graph_indices(new_graph, action)
-        
         NetworkSim.independent_cascade_allNodes(new_graph, cascade_prob)
-
         NetworkSim.rearm_nodes(new_graph)
-
         # Update edge activations (i dont think you actually need this function)
         NetworkSim.determine_edge_activation(new_graph)
-
         return new_graph
 
     @staticmethod    

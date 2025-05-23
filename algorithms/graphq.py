@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv
 import numpy as np
 import random
-from algorithms.graphq_env import GraphEnv, convert_nx_to_pyg
+from algorithms.graphq_env import convert_nx_to_pyg
 import matplotlib.pyplot as plt
 import time
 

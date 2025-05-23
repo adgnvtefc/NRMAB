@@ -7,18 +7,11 @@ import numpy as np
 from math import comb
 from tqdm import tqdm
 import random
-import time
-
-#how the Q table works:
-#each entry in the table represents the Q value -- the action value function, in a particular state
-#we fill in the Q table and use it to determine the best action
-#We can derive the state value function V(s) from taking the max of a row of the Q table corresponding to the value function
 
 
 #class to implement bellman's equation using Q-Table
 class TabularBellman:
 
-    #you should pass in a complete graph to this function
     def __init__(self, graph, num_actions = 1, gamma = 0.9, alpha=0.1):
         self.graph = graph
 
@@ -57,7 +50,6 @@ class TabularBellman:
                         #action_nodes = [graph.nodes[node_idx]['obj'] for node_idx in action]
 
                         # Simulate one step in the environment
-                        #next_graph, reward = self.simulate_step(state_index, action)
                         reward = ns.action_value_function(graph, action, self.num_actions, 0.05, self.gamma, horizon=1, max_horizon=1, num_samples=1)
                         next_graph = ns.simulate_next_state(graph, action, 0.05)
 
@@ -198,7 +190,6 @@ class TabularBellman:
     #helper function that, given an action, gives its column in the Q table
     def get_action_pos(self, actions):
         #actions is a tuple of len(num_actions), each of it which is an int between [1, num_nodes]
-        #how do?
         sorted_actions = tuple(sorted(actions))
         return self.all_action_combinations.index(sorted_actions)
 
