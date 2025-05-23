@@ -5,7 +5,7 @@ Reinforcement Learning*.
 ## Usage Instructions
 
 1. Run `reinstall.sh` to create the virtual environment (`venv`) and download all necessary dependencies.
-3. To replicate experimental results, run `python india_real_data_trial.py`, `python dqn_v_tabular.py`, or `python plot_ccost.py` respectively insie the `venv`.
+3. To replicate experimental results, run `python india_real_data_trial.py`, `python dqn_v_tabular.py`, or `python plot_ccost.py` respectively inside the `venv`.
 4. After experiments finish running, folders containing results will be created.
 
 **Note that due to stochasticity in graph generation, experimental results may not be able to be exactly replicated. However, approximate results should uphold experimental validity.**
