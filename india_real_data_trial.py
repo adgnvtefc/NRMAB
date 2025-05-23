@@ -18,7 +18,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import networkx as nx
 from networkSim import NetworkSim as ns
-from networkvis import NetworkVis as nv
 from comparisons import Comparisons 
 from plotting import plot_trials
 

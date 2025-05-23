@@ -190,7 +190,7 @@ class GraphQ(nn.Module):
         new_prios = [e + 1e-6 for e in td_errors]
         self.per_buffer.update_priorities(indices, new_prios)
 
-    def train(self, env, num_episodes=300, plot_rewards=True, save_path='training_rewards.png'):
+    def train(self, env, num_episodes=300, plot_rewards=False, save_path='training_rewards.png'):
         start_time = time.perf_counter()
 
         self.episode_rewards = []

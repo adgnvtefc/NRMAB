@@ -84,7 +84,7 @@ class Comparisons:
         env = GraphEnv(config)
         model = GraphQ(input_dim=10, hidden_dim=32, output_dim=1, gamma=config['gamma'])
         model.to(self.device)
-        model.train(env, num_episodes=100, save_path='real_data_trials/results/rewards.png')
+        model.train(env, num_episodes=100, save_path='results/rewards.png')
         self.models['graph'] = model
 
     def run_single_hillclimb(self, md, data):

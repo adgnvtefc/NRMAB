@@ -1,5 +1,5 @@
 import gymnasium as gym
-from algorithms.deep_q_env import NetworkInfluenceEnv
+from algorithms.deepq_env import NetworkInfluenceEnv
 import random
 import torch
 import torch.nn as nn
