@@ -63,7 +63,7 @@ print("Completed comparisons.")
 print("Plotting results...")
 plot_trials(
     results,
-    output_dir="results",
+    output_dir="real_data_trials/dvt",
     plot_cumulative_for=("reward",),  # tuple of metrics to plot cumulatively
     file_prefix="comparison"
 )
