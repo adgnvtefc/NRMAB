@@ -3,9 +3,7 @@ from gymnasium import spaces
 import numpy as np
 import copy
 from networkSim import NetworkSim as ns
-from networkvis import NetworkVis as nv
 import networkx as nx
-import random
 
 class NetworkInfluenceEnv(gym.Env):
     metadata = {"render_modes": ["human"], "render_fps": 4}
@@ -52,16 +50,11 @@ class NetworkInfluenceEnv(gym.Env):
         self.state = np.zeros(self.num_nodes, dtype=np.int8)
         observation = self._get_obs()
         info = self._get_info()
-        if self.render_mode == "human":
-            self._render_frame()
         return observation, info
 
     def step(self, action):
         action_indices = np.argwhere(action).flatten()
-        #print(type(action_indices[0]))
-        #print(self.graph)
 
-        #significantly slows down with any parameter other than num_samples=1 (abt 2 min per epoch at =1, 20 min at =3, for... reasons ig)
         reward = ns.action_value_function(self.graph, action_indices, num_actions=1, cascade_prob=self.cascade_prob, gamma=self.gamma, horizon=1, num_samples=1)
         self.latest_step_reward = reward
 
@@ -81,14 +74,8 @@ class NetworkInfluenceEnv(gym.Env):
         observation = self._get_obs()
         info = self._get_info()
 
-        if self.render_mode == "human":
-            self._render_frame()
 
         return observation, reward, terminated, False, info
-
-    def _render_frame(self):
-        if self.render_mode == "human":
-            nv.render(self.graph, self.pos)
 
 # Register the environment
 from gymnasium.envs.registration import register
