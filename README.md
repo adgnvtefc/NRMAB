@@ -40,8 +40,8 @@ Below are the three scripts used to produce the data for figures 2, 3, and 4 in 
 
 The environments live in:
 
-* **`algorithms/deepq_env.py`** – binary multi‑action space (`MultiBinary`) where an agent seeds *k* nodes per step. :contentReference[oaicite:5]{index=5}  
-* **`algorithms/graphq_env.py`** – single‑action space with rich 10‑dim node features exported as a PyG `Data` object. :contentReference[oaicite:6]{index=6}  
+* **`algorithms/deepq_env.py`** – binary multi‑action space (`MultiBinary`) where an agent seeds *k* nodes per step. 
+* **`algorithms/graphq_env.py`** – single‑action space with rich 10‑dim node features exported as a PyG `Data` object. 
 
 ## Graphs
 
