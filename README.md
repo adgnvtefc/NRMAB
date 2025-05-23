@@ -61,7 +61,7 @@ They generate graphs, run large‑scale comparisons, and produce publication‑q
 | **`comparisons.py`** | Orchestrates **training and evaluation** across multiple algorithms (DQN, GNN, Whittle, 1-step lookahead, etc.). Handles model caching, per‑timestep simulation, and aggregates results for plotting.|
 | **`networkSim.py`** | Low‑level **graph simulator**: creates random graphs, executes node‑state transitions, independent‑cascade spread, and Monte‑Carlo look‑ahead value functions.|
 | **`plotting.py`** | **Plotting + history tracker** with an “academic” Matplotlib/Seaborn style. Saves per‑run CSVs, then plots mean ± STD and cumulative metrics across all historical runs.| `plot_trials`, `aggregate_history` |
-| **`simpleNode.py`** | Handles node-level logic in the graph|
+| **`simpleNode.py`** | Handles node-level logic in the graph.|
 
 ## Results
-The full suite of results can be found in `\results`
+The full suite of results can be found in `\results`.
