@@ -24,9 +24,9 @@ Below are the three scripts used to produce the data for figures 2, 3, and 4 in 
 
 | Script | What it shows | 
 |--------|---------------|
-| **`india_real_data_trial.py`** | **Real‑world India contact graph**<br>Compares 5 strategies (GNN, DQN, 1-step lookahead, Whittle index, and a “no‑action” baseline) on the same static network. | 
-| **`dqn_v_tabular.py`** | **Synthetic toy graphs** (10‑node random) to contrast learning vs. exhaustive lookup.<br>Runs **DQN**, **Tabular Bellman**, and **GNN‑DQN** for 10 independent seeds..|
-| **`plot_ccost.py`** | **Computational cost sweep**: renders the time‑per‑epoch of Tabular, DQN, and GNN agents as a function of graph size (2 → 11 nodes). | 
+| **`india_real_data_trial.py`** | Real‑world India contact graph<br>Compares 5 strategies (GNN, DQN, 1-step lookahead, Whittle index, and a “no‑action” baseline) for 10 random seeds. | 
+| **`dqn_v_tabular.py`** | Compares performance of DQN and GNN vs. Tabular Q-Learning on a synthetic 10‑node graph|
+| **`plot_ccost.py`** | Computational cost sweep: renders the time‑per‑epoch of Tabular, DQN, and GNN agents as a function of graph size (2 → 11 nodes). | 
 
 ## NRMAB Algorithms in `/algorithms`
 
