@@ -1,0 +1,4 @@
+Algorithms: ['dqn', 'cdsqn']
+Comparisons: 30
+Timesteps: 30
+Num Actions: 30

@@ -200,7 +200,7 @@ class TrainStepResult:
     
 
 
-def train_dqn_agent(config, num_actions, num_epochs=3):
+def train_dqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
     start_time = time.perf_counter()
 
     # Set up environment
@@ -237,7 +237,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3):
         train_collector=train_collector,
         test_collector=None,
         max_epoch=num_epochs,
-        step_per_epoch=1000,
+        step_per_epoch=step_per_epoch,
         step_per_collect=50,
         episode_per_test=0,
         batch_size=64,

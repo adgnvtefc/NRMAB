@@ -11,6 +11,8 @@ import numpy as np
 import random
 
 
+from algorithms.cdsqn import train_cdsqn_agent, select_action_cdsqn
+
 class Comparisons:
     def __init__(self, device=None):
         # Set device for all algorithms
@@ -25,7 +27,8 @@ class Comparisons:
             "tabular": self.run_single_tabular,
             "graph": self.run_single_graph,
             "none": self.run_single_noalg,
-            "random": self.run_single_random
+            "random": self.run_single_random,
+            "cdsqn": self.run_single_cdsqn
         }
 
     def train_dqn(self, initial_graph, num_actions, cascade_prob):
@@ -38,9 +41,24 @@ class Comparisons:
         }
         print("Training DQN agent...")
         model, policy = train_dqn_agent(
-            config, num_actions, num_epochs=7
+            config, num_actions, num_epochs=3, step_per_epoch=500
         )
         self.models['dqn'] = model.to(self.device)
+
+    def train_cdsqn(self, initial_graph, num_actions, cascade_prob):
+        config = {
+            "graph": copy.deepcopy(initial_graph),
+            "num_nodes": len(initial_graph.nodes),
+            "cascade_prob": cascade_prob,
+            "stop_percent": 0.90,
+            "reward_function": "normal"
+            # num_actions and gamma removed as they are handled by agent params or hardcoded env
+        }
+        print("Training CDSQN agent...")
+        model, policy = train_cdsqn_agent(
+            config, num_actions, num_epochs=3, step_per_epoch=500 # Use same epochs as DQN for fair comparison
+        )
+        self.models['cdsqn'] = model.to(self.device)
 
     def train_tabular(self, initial_graph, num_actions, gamma):
         tab = TabularBellman(
@@ -109,6 +127,24 @@ class Comparisons:
             ns.independent_cascade_allNodes(g, md['cascade_prob'])
             ns.rearm_nodes(g)
             self.collect_data('dqn', g, data, t)
+        return True
+    
+    def run_single_cdsqn(self, md, data):
+        g = copy.deepcopy(md['initial_graph'])
+        
+        for t in range(1, md['timesteps']+1):
+            # Select action using agent's greedy hill-climber (inference function)
+            seeds = select_action_cdsqn(
+                g, model=self.models['cdsqn'], num_actions=md['num_actions']
+            )
+            
+            # Seeds are already node objects returned by select_action_cdsqn
+            
+            ns.passive_state_transition_without_neighbors(g, exempt_nodes=seeds)
+            ns.active_state_transition(seeds)
+            ns.independent_cascade_allNodes(g, md['cascade_prob'])
+            ns.rearm_nodes(g)
+            self.collect_data('cdsqn', g, data, t)
         return True
 
     def run_single_whittle(self, md, data):
