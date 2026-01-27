@@ -90,13 +90,13 @@ def main():
         os.makedirs(output_dir)
 
     print(f"\n[Saving Results to {output_dir}]")
-    plot_trials(
-        results,
-        output_dir=output_dir,
-        plot_cumulative_for=("reward",),
-        file_prefix="comparison_india",
-        metadata=metadata
-    )
+    # plot_trials(
+    #     results,
+    #     output_dir=output_dir,
+    #     plot_cumulative_for=("reward",),
+    #     file_prefix="comparison_india",
+    #     metadata=metadata
+    # )
     
     # Save a simple summary text
     with open(f"{output_dir}/summary.txt", "w") as f:
