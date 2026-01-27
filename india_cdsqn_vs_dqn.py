@@ -28,7 +28,7 @@ def main():
     # pos = nx.spring_layout(graph) # Not strictly needed unless visualizing graph structure itself
 
     # 2. Configuration
-    algorithms = ['dqn', 'cdsqn']
+    algorithms = ['dqn', 'cdsqn', 'whittle', 'random']
     
     # Matching style of india_real_data_trial.py but possibly adjusting for runtime
     NUM_ACTIONS = 10
@@ -50,14 +50,22 @@ def main():
     # Train DQN
     if 'dqn' in algorithms:
         print("\n[Training DQN]")
-        comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
+        comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB, num_epochs=3)
         print("Finished training DQN")
 
     # Train CDSQN
     if 'cdsqn' in algorithms:
         print("\n[Training CDSQN]")
-        comp.train_cdsqn(graph, NUM_ACTIONS, CASCADE_PROB)
+        comp.train_cdsqn(graph, NUM_ACTIONS, CASCADE_PROB, num_epochs=3)
         print("Finished training CDSQN")
+
+    # Train Whittle (Initialize Policy)
+    if 'whittle' in algorithms:
+        print("\n[Initializing Whittle Index Policy]")
+        comp.train_whittle(graph, GAMMA)
+        print("Finished initializing Whittle")
+        
+    # Other algorithms (random, hillclimb) do not require training
 
     # 4. Run Comparisons
     print(f"\n[Running {NUM_COMPARISONS} Comparisons]")
@@ -90,6 +98,35 @@ def main():
         os.makedirs(output_dir)
 
     print(f"\n[Saving Results to {output_dir}]")
+    import pandas as pd
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Flatten results for DataFrame
+    # results is a dict: algo -> [DataFrame of trials]
+    # We want a single CSV with mean metrics per timestep? 
+    # Or just save the raw data.
+    # plot_trials usually handles aggregation. 
+    # Let's save the raw concatenated dataframe.
+    
+    dfs = []
+    # results is a LIST of trial dictionaries.
+    # Each trial dictionary has keys for each algorithm.
+    for trial_idx, trial_data in enumerate(results):
+        for algo, metrics in trial_data.items():
+            # metrics is a dict of lists: {'timestep':[], 'reward':[], ...}
+            df = pd.DataFrame(metrics)
+            df['algorithm'] = algo
+            df['trial'] = trial_idx
+            dfs.append(df)
+    
+    full_df = pd.concat(dfs)
+    full_df.to_csv(f"{output_dir}/comparison_india_raw_{timestamp}.csv", index=False)
+    
+    # Also calculate and save means for quick verification
+    means = full_df.groupby(['algorithm', 'timestep']).mean().reset_index()
+    means.to_csv(f"{output_dir}/comparison_india_means_{timestamp}.csv", index=False)
+
     # plot_trials(
     #     results,
     #     output_dir=output_dir,

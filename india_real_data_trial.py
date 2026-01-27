@@ -24,22 +24,27 @@ from plotting import plot_trials
 graph = ns.build_graph_from_edgelist("graphs/India.txt", value_low=1, value_high=2)
 pos = nx.spring_layout(graph)
 
-algorithms = ['graph', 'dqn', 'hillclimb','whittle','none']
-NUM_ACTIONS = 30
-NUM_COMPARISONS = 50
-CASCADE_PROB = 0.03
+algorithms = ['dqn', 'cdsqn', 'hillclimb', 'whittle', 'random', 'none']
+NUM_ACTIONS = 10 # Adjusted for CDSQN speed/consistency
+NUM_COMPARISONS = 20 # Adjusted for runtime
+CASCADE_PROB = 0.05
 GAMMA = 0.95
-TIMESTEPS = 30
+TIMESTEPS = 20
 TIMESTEP_INTERVAL = 5
 
 comp = Comparisons(device=device)  
-print("start graph")
-comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB, GAMMA)
-print("Finished train_graph")
+# print("start graph")
+# comp.train_graph(graph, NUM_ACTIONS, CASCADE_PROB, GAMMA)
+# print("Finished train_graph")
+print("start whittle")
 comp.train_whittle(graph, GAMMA)
 print("Finished train_whittle")
+print("start dqn")
 comp.train_dqn(graph, NUM_ACTIONS, CASCADE_PROB)
 print("Finished train_dqn")
+print("start cdsqn")
+comp.train_cdsqn(graph, NUM_ACTIONS, CASCADE_PROB)
+print("Finished train_cdsqn")
 
 metadata = {
     "algorithms": algorithms,

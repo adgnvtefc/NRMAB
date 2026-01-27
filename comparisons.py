@@ -31,7 +31,7 @@ class Comparisons:
             "cdsqn": self.run_single_cdsqn
         }
 
-    def train_dqn(self, initial_graph, num_actions, cascade_prob):
+    def train_dqn(self, initial_graph, num_actions, cascade_prob, num_epochs=3):
         config = {
             "graph": copy.deepcopy(initial_graph),
             "num_nodes": len(initial_graph.nodes),
@@ -39,13 +39,13 @@ class Comparisons:
             "stop_percent": 0.90,
             "reward_function": "normal"
         }
-        print("Training DQN agent...")
+        print(f"Training DQN agent for {num_epochs} epochs...")
         model, policy = train_dqn_agent(
-            config, num_actions, num_epochs=3, step_per_epoch=500
+            config, num_actions, num_epochs=num_epochs, step_per_epoch=500
         )
         self.models['dqn'] = model.to(self.device)
 
-    def train_cdsqn(self, initial_graph, num_actions, cascade_prob):
+    def train_cdsqn(self, initial_graph, num_actions, cascade_prob, num_epochs=3):
         config = {
             "graph": copy.deepcopy(initial_graph),
             "num_nodes": len(initial_graph.nodes),
@@ -54,9 +54,9 @@ class Comparisons:
             "reward_function": "normal"
             # num_actions and gamma removed as they are handled by agent params or hardcoded env
         }
-        print("Training CDSQN agent...")
+        print(f"Training CDSQN agent for {num_epochs} epochs...")
         model, policy = train_cdsqn_agent(
-            config, num_actions, num_epochs=3, step_per_epoch=500 # Use same epochs as DQN for fair comparison
+            config, num_actions, num_epochs=num_epochs, step_per_epoch=500 # Use same epochs as DQN for fair comparison
         )
         self.models['cdsqn'] = model.to(self.device)
 

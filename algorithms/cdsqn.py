@@ -380,7 +380,7 @@ def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
     dsf_hidden_dim = 64
     
     model = CDSQN(config['num_nodes'], state_dim, hidden_dim, dsf_hidden_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
     
     policy = CDSQNPolicy(model, optimizer, action_dim=config['num_nodes'], num_nodes=config['num_nodes'], k=num_actions, gamma=0.99)
     

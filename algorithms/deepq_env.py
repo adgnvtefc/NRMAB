@@ -55,7 +55,9 @@ class NetworkInfluenceEnv(gym.Env):
     def step(self, action):
         action_indices = np.argwhere(action).flatten()
 
-        reward = ns.action_value_function(self.graph, action_indices, num_actions=1, cascade_prob=self.cascade_prob, gamma=self.gamma, horizon=1, num_samples=1)
+        # Align reward calculation with standard RL (immediate reward only)
+        # Using ns.reward_function calculates the value of the current state (sum of active node values)
+        reward = ns.reward_function(self.graph, action_indices) / 100.0
         self.latest_step_reward = reward
 
         ns.passive_state_transition_without_neighbors(self.graph, action_indices)

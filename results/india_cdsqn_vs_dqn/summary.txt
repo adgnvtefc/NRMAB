@@ -1,4 +1,4 @@
-Algorithms: ['dqn', 'cdsqn']
-Comparisons: 30
-Timesteps: 30
-Num Actions: 30
+Algorithms: ['dqn', 'cdsqn', 'whittle', 'random']
+Comparisons: 20
+Timesteps: 20
+Num Actions: 10
