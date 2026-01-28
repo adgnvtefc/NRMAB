@@ -35,6 +35,7 @@ plt.rcParams.update({
 formal_name = {
     'graph': 'GNN',
     'dqn': 'DQN',
+    'cdsqn': 'CDSQN',
     'hillclimb': 'k-step lookahead',
     'whittle': 'Whittle',
     'none': 'None',
@@ -47,7 +48,8 @@ colors = {
     'hillclimb': '#e377c2',
     'whittle':   '#2ca02c',
     'none':      '#9467bd',
-    'tabular':   '#17becf'
+    'tabular':   '#17becf',
+    'cdsqn':     "#bbea37"
 }
 # Distinctive markers
 markers = {
@@ -56,10 +58,11 @@ markers = {
     'hillclimb': 'd',
     'whittle':   '^',
     'none':      'v',
-    'tabular':   '*'
+    'tabular':   '*',
+    'cdsqn':     '.'
 }
 # Legend order
-legend_order = ['graph', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular']
+legend_order = ['graph', 'cdsqn', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular']
 
 
 def plot_trials(
@@ -115,9 +118,11 @@ def plot_trials(
         return
     dfs = [pd.read_csv(f) for f in files]
     cols = [c for c in dfs[0].columns if c.endswith('_mean')]
+    print(cols)
 
     # Determine history algos and metrics
     hist_algos = [a for a in legend_order if any(c.startswith(a+'_') for c in cols)]
+    print(f'hist{hist_algos}')
     hist_metrics = sorted({c[:-5].split('_',1)[1] for c in cols})
     stack = {c: np.stack([df[c].values for df in dfs], axis=0) for c in cols}
 
@@ -210,7 +215,7 @@ def plot_trials(
 
 
 def aggregate_history(
-    output_dir="results",
+    output_dir="real_data_trials/results",
     plot_cumulative_for=("reward",),
     file_prefix="comparison",
     textwidth_inches=7.0,
