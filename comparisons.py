@@ -37,7 +37,8 @@ class Comparisons:
             "num_nodes": len(initial_graph.nodes),
             "cascade_prob": cascade_prob,
             "stop_percent": 0.90,
-            "reward_function": "normal"
+            "reward_function": "normal",
+            "reward_scale": 100.0
         }
         print(f"Training DQN agent for {num_epochs} epochs...")
         model, policy = train_dqn_agent(
@@ -51,7 +52,8 @@ class Comparisons:
             "num_nodes": len(initial_graph.nodes),
             "cascade_prob": cascade_prob,
             "stop_percent": 0.90,
-            "reward_function": "normal"
+            "reward_function": "normal",
+            "reward_scale": 100.0 # Testing if Target Network allows standard scaling
             # num_actions and gamma removed as they are handled by agent params or hardcoded env
         }
         print(f"Training CDSQN agent for {num_epochs} epochs...")
