@@ -26,10 +26,10 @@ pos = nx.spring_layout(graph)
 
 algorithms = ['dqn', 'cdsqn', 'hillclimb', 'whittle', 'random', 'none']
 NUM_ACTIONS = 10 # Adjusted for CDSQN speed/consistency
-NUM_COMPARISONS = 20 # Adjusted for runtime
+NUM_COMPARISONS = 50 # Adjusted for runtime
 CASCADE_PROB = 0.05
-GAMMA = 0.95
-TIMESTEPS = 20
+GAMMA = 0.8
+TIMESTEPS = 30
 TIMESTEP_INTERVAL = 5
 
 comp = Comparisons(device=device)  

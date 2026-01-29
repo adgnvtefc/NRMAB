@@ -36,7 +36,7 @@ formal_name = {
     'graph': 'GNN',
     'dqn': 'DQN',
     'cdsqn': 'CDSQN',
-    'hillclimb': 'k-step lookahead',
+    'hillclimb': '1-step lookahead',
     'whittle': 'Whittle',
     'none': 'None',
     'tabular': 'Tabular'
@@ -44,22 +44,22 @@ formal_name = {
 # Fixed, distinctive colors for each algorithm
 colors = {
     'graph':     '#1f77b4',
-    'dqn':       '#ff7f0e',
+    'dqn':       "#bbea37",
     'hillclimb': '#e377c2',
     'whittle':   '#2ca02c',
     'none':      '#9467bd',
     'tabular':   '#17becf',
-    'cdsqn':     "#bbea37"
+    'cdsqn':     '#ff7f0e'
 }
 # Distinctive markers
 markers = {
     'graph':     'o',
-    'dqn':       's',
+    'dqn':       '.',
     'hillclimb': 'd',
     'whittle':   '^',
     'none':      'v',
     'tabular':   '*',
-    'cdsqn':     '.'
+    'cdsqn':     's'
 }
 # Legend order
 legend_order = ['graph', 'cdsqn', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular']
@@ -120,11 +120,21 @@ def plot_trials(
     cols = [c for c in dfs[0].columns if c.endswith('_mean')]
     print(cols)
 
+    # Determine min length to handle shape mismatches
+    min_len = min(len(df) for df in dfs)
+    print(f"Truncating history to {min_len} timesteps due to length mismatch.")
+
     # Determine history algos and metrics
     hist_algos = [a for a in legend_order if any(c.startswith(a+'_') for c in cols)]
     print(f'hist{hist_algos}')
     hist_metrics = sorted({c[:-5].split('_',1)[1] for c in cols})
-    stack = {c: np.stack([df[c].values for df in dfs], axis=0) for c in cols}
+    
+    # Truncate to min_len
+    stack = {c: np.stack([df[c].values[:min_len] for df in dfs], axis=0) for c in cols}
+    
+    # Update timesteps for history plotting
+    timesteps_hist = dfs[0]['timestep'].values[:min_len]
+    timesteps_ext = np.concatenate(([0], timesteps_hist))
 
     # Style helper
     def style_ax(ax):
@@ -230,12 +240,19 @@ def aggregate_history(
         print("No historical CSVs found.")
         return
     dfs = [pd.read_csv(f) for f in files]
-    timesteps = dfs[0]['timestep'].values
+    
+    # Handle length mismatch by truncating to minimum common length
+    min_len = min(len(df) for df in dfs)
+    print(f"Truncating history to {min_len} timesteps due to length mismatch.")
+    
+    timesteps = dfs[0]['timestep'].values[:min_len]
     timesteps_ext = np.concatenate(([0], timesteps))
     cols = [c for c in dfs[0].columns if c.endswith('_mean')]
     hist_algos = [a for a in legend_order if any(c.startswith(a+'_') for c in cols)]
     hist_metrics = sorted({c[:-5].split('_',1)[1] for c in cols})
-    stack = {c: np.stack([df[c].values for df in dfs], axis=0) for c in cols}
+    
+    # stack truncated
+    stack = {c: np.stack([df[c].values[:min_len] for df in dfs], axis=0) for c in cols}
 
     def style_ax(ax):
         ax.spines['top'].set_visible(False)

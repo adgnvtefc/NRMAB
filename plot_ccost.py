@@ -28,34 +28,34 @@ plt.rcParams.update({
 
 # Formal names and styling maps
 formal_name = {
-    'graph': 'GNN',
-    'dqn': 'DQN',
+    'cdsqn':   'CDSQN',
+    'dqn':     'DQN',
     'tabular': 'Tabular'
 }
 colors = {
-    'graph':   '#1f77b4',  # blue
-    'dqn':     '#ff7f0e',  # orange
+    'cdsqn':   '#ff7f0e',  # orange
+    'dqn':     "#bbea37",  # lime
     'tabular': '#17becf'   # cyan
 }
 markers = {
-    'graph':   'o',  # circle
-    'dqn':     's',  # square
+    'cdsqn':   's',  # square
+    'dqn':     '.',  # dot
     'tabular': '*'   # star
 }
 linestyles = {
-    'graph':   '-',
+    'cdsqn':   '-',
     'dqn':     '-',
     'tabular': '-'
 }
 
 # Legend order
-legend_order = ['graph', 'dqn', 'tabular']
+legend_order = ['cdsqn', 'dqn', 'tabular']
 
 def plot_compute_cost(
     nodes,
     tab_time,
     dqn_time,
-    gnn_time,
+    cdsqn_time,
     output_dir="real_data_trials/c_cost",
     file_name="computational_cost",
     textwidth_inches=7.0,
@@ -85,10 +85,10 @@ def plot_compute_cost(
         ax.spines['right'].set_visible(False)
         ax.grid(False)
 
-    # Plot lines in legend_order: GNN, DQN, Tabular
+    # Plot lines in legend_order: CDSQN, DQN, Tabular
     finals = []
     series = {
-        'graph': gnn_time,
+        'cdsqn': cdsqn_time,
         'dqn':   dqn_time,
         'tabular': tab_time
     }
@@ -129,18 +129,10 @@ def plot_compute_cost(
     print(f"Saved computational cost plot to {out_path}")
 
 if __name__ == '__main__':
-    nodes = list(range(2, 12))
-    tab_time = [0.0071, 0.0088, 0.0354, 0.1049, 0.3490,
-                0.9060, 2.9397, 6.5880, 17.9033, 44.8721]
-    dqn_time = [9.7155, 5.7668, 6.5936, 8.6184, 9.6514,
-                10.0265, 11.0897, 11.5243, 13.0774, 13.8299]
-    gnn_time = [6.0337, 0.2538, 49.3024, 0.8811, 80.2261,
-                33.8758, 72.8039, 67.1614, 47.6199, 45.6080]
-    dqn_epoch = 3
-    gnn_epoch = 20
-    # average per epoch
-    dqn_time = [t / dqn_epoch for t in dqn_time]
-    gnn_time = [t / gnn_epoch for t in gnn_time]
+    nodes = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    tab_time = [8.2575, 11.3764, 13.7647, 17.8291, 25.724, 32.3468, 48.4678, 57.7142, 51.7331, 59.4346]
+    dqn_time = [0.7124, 0.161, 0.1861, 0.2, 0.2141, 0.2434, 0.2462, 0.2402, 0.2624, 0.2626]
+    cdsqn_time = [0.6026, 0.6217, 0.6994, 0.7446, 0.7955, 0.9035, 1.0384, 0.8986, 1.0002, 1.0322]
 
     # call with auto_scale=True or False
-    plot_compute_cost(nodes, tab_time, dqn_time, gnn_time, auto_scale=False)
+    plot_compute_cost(nodes, tab_time, dqn_time, cdsqn_time, auto_scale=False)
