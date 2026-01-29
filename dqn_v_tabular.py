@@ -29,8 +29,8 @@ G = ns.init_random_graph(
 )
 print(f"Initialized random graph with {len(G.nodes)} nodes and {len(G.edges)} edges.")
 
-# 4. Parameters (retain your original settings)
-algorithms = ['dqn', 'tabular', 'graph']
+# 4. Parameters
+algorithms = ['dqn', 'tabular', 'cdsqn']
 NUM_COMPARISONS = 10
 NUM_ACTIONS = 2
 CASCADE_PROB = 0.05
@@ -40,7 +40,7 @@ TIMESTEP_INTERVAL = 5
 
 # 5. Initialize Comparisons object
 comp = Comparisons(device=device)
-comp.train_graph(G, NUM_ACTIONS, CASCADE_PROB, GAMMA)
+comp.train_cdsqn(G, NUM_ACTIONS, CASCADE_PROB)
 comp.train_dqn(G, NUM_ACTIONS, CASCADE_PROB)
 comp.train_tabular(G, NUM_ACTIONS, GAMMA)
 
