@@ -1,7 +1,5 @@
 # Networked Restless Multi-Arm Bandits with Reinforcement Learning
 
-**Authors**: Hanmo Zhang (CMU), Zenghui Sun (Georgia Tech), Kai Wang (Georgia Tech)
-
 ## Abstract
 Restless Multi-Armed Bandits (RMABs) are a powerful framework for sequential decision-making, widely applied in resource allocation and intervention optimization challenges in public health. However, traditional RMABs assume independence among arms, limiting their ability to account for interactions between individuals that can be common and significant in a real-world environment. 
 
@@ -54,8 +52,8 @@ Experimental results on real-world graph data demonstrate that our Q-learning ap
 ### Algorithms (`/algorithms`)
 | Algorithm | File | Highlights |
 |-----------|------|------------|
-| **Contextual Deep Submodular Q-Net** | `cdsqn.py` | **(Novel)** Hypernetwork-based architecture enforcing submodularity via concave activations and positive weights. |
-| **Deep Q-Network** | `deepq.py` | Standard MLP-based DQN with greedy action selection. |
+| **Contextual Deep Submodular Q-Net** | `cdsqn.py` | Hypernetwork-based architecture enforcing submodularity via concave activations and positive weights, and using greedy hill-climbing for action selection. |
+| **Deep Q-Network** | `deepq.py` | Standard MLP-based DQN with greedy hill-climbing action selection. |
 | **Whittle Index** | `whittle.py` | Classic RMAB index policy, unaware of network effects. |
 | **1-Step Lookahead** | `hillClimb.py` | Greedy heuristic optimizing immediate gain. |
 | **Tabular Bellman** | `tabularbellman.py` | Exact value iteration for small state spaces (ground truth). |
@@ -70,17 +68,6 @@ Experimental results on real-world graph data demonstrate that our Q-learning ap
 ---
 
 ## Key Results
-- **Performance**: CDSQN achieves the highest cumulative reward on the India contact network, outperforming both standard DQN ($p \approx 0.067$) and the Whittle Index ($p < 0.01$).
+- **Performance**: CDSQN achieves the highest cumulative reward on the India contact network, outperforming both standard DQN and the Whittle Index.
 - **Optimality**: On small graphs, CDSQN matches the performance of the optimal Tabular Q-Learning policy.
 - **Scalability**: CDSQN's computational cost grows linearly with graph size, whereas the optimal Tabular solution scales exponentially.
-
-## Citation
-If you use this code found in this repository, please cite:
-```bibtex
-@article{zhang2026networked,
-  title={Networked Restless Multi-Arm Bandits with Reinforcement Learning},
-  author={Zhang, Hanmo and Sun, Zenghui and Wang, Kai},
-  journal={ICML},
-  year={2026}
-}
-```
