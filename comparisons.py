@@ -4,8 +4,6 @@ from algorithms.hillClimb import HillClimb
 from algorithms.deepq import train_dqn_agent, select_action_dqn, get_dqn_total_time, get_dqn_times_called
 from algorithms.whittle import WhittleIndexPolicy
 from algorithms.tabularbellman import TabularBellman 
-from algorithms.graphq import GraphQ
-from algorithms.graphq_env import GraphEnv
 from networkSim import NetworkSim as ns
 import numpy as np
 import random
@@ -25,7 +23,6 @@ class Comparisons:
             "dqn": self.run_single_dqn,
             "whittle": self.run_single_whittle,
             "tabular": self.run_single_tabular,
-            "graph": self.run_single_graph,
             "none": self.run_single_noalg,
             "random": self.run_single_random,
             "cdsqn": self.run_single_cdsqn
@@ -92,20 +89,6 @@ class Comparisons:
         )
         self.models['whittle'] = policy
 
-    def train_graph(self, initial_graph, num_actions, cascade_prob, gamma):
-        config = {
-            "graph": copy.deepcopy(initial_graph),
-            "num_nodes": len(initial_graph.nodes),
-            "cascade_prob": cascade_prob,
-            "stop_percent": 0.90,
-            "reward_function": "normal",
-            "gamma": gamma
-        }
-        env = GraphEnv(config)
-        model = GraphQ(input_dim=10, hidden_dim=32, output_dim=1, gamma=config['gamma'])
-        model.to(self.device)
-        model.train(env, num_episodes=100, save_path='results/rewards.png')
-        self.models['graph'] = model
 
     def run_single_hillclimb(self, md, data):
         g = copy.deepcopy(md['initial_graph'])
@@ -174,16 +157,6 @@ class Comparisons:
             self.collect_data('tabular', g, data, t)
         return True
 
-    def run_single_graph(self, md, data):
-        g = copy.deepcopy(md['initial_graph'])
-        for t in range(1, md['timesteps']+1):
-            seeds = self.models['graph'].predict(g, k=md['num_actions'])
-            ns.passive_state_transition_without_neighbors(g, exempt_nodes=seeds)
-            ns.active_state_transition_graph_indices(g, seeds)
-            ns.independent_cascade_allNodes(g, md['cascade_prob'])
-            ns.rearm_nodes(g)
-            self.collect_data('graph', g, data, t)
-        return True
 
     def run_single_noalg(self, md, data):
         g = copy.deepcopy(md['initial_graph'])

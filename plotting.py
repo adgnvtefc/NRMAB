@@ -33,7 +33,6 @@ plt.rcParams.update({
 
 # Formal names for legend
 formal_name = {
-    'graph': 'GNN',
     'dqn': 'DQN',
     'cdsqn': 'CDSQN',
     'hillclimb': '1-step lookahead',
@@ -43,7 +42,6 @@ formal_name = {
 }
 # Fixed, distinctive colors for each algorithm
 colors = {
-    'graph':     '#1f77b4',
     'dqn':       "#bbea37",
     'hillclimb': '#e377c2',
     'whittle':   '#2ca02c',
@@ -53,7 +51,6 @@ colors = {
 }
 # Distinctive markers
 markers = {
-    'graph':     'o',
     'dqn':       '.',
     'hillclimb': 'd',
     'whittle':   '^',
@@ -62,7 +59,7 @@ markers = {
     'cdsqn':     's'
 }
 # Legend order
-legend_order = ['graph', 'cdsqn', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular']
+legend_order = ['cdsqn', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular', 'random']
 
 
 def plot_trials(
