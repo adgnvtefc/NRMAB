@@ -36,7 +36,7 @@ formal_name = {
     'graph': 'GNN',
     'dqn': 'DQN',
     'cdsqn': 'CDSQN',
-    'hillclimb': 'k-step lookahead',
+    'hillclimb': '1-step lookahead',
     'whittle': 'Whittle',
     'none': 'None',
     'tabular': 'Tabular'
