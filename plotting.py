@@ -49,7 +49,11 @@ colors = {
     'whittle':   '#2ca02c',
     'none':      '#9467bd',
     'tabular':   '#17becf',
+<<<<<<< HEAD
     'cdsqn':     '#ff7f0e'
+=======
+    'cdsqn':     "#bbea37"
+>>>>>>> 40640727e68736c6720f5f78ca3b3cd13053c137
 }
 # Distinctive markers
 markers = {
@@ -59,7 +63,11 @@ markers = {
     'whittle':   '^',
     'none':      'v',
     'tabular':   '*',
+<<<<<<< HEAD
     'cdsqn':     's'
+=======
+    'cdsqn':     '.'
+>>>>>>> 40640727e68736c6720f5f78ca3b3cd13053c137
 }
 # Legend order
 legend_order = ['graph', 'cdsqn', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular']
@@ -119,10 +127,13 @@ def plot_trials(
     dfs = [pd.read_csv(f) for f in files]
     cols = [c for c in dfs[0].columns if c.endswith('_mean')]
     print(cols)
+<<<<<<< HEAD
 
     # Determine min length to handle shape mismatches
     min_len = min(len(df) for df in dfs)
     print(f"Truncating history to {min_len} timesteps due to length mismatch.")
+=======
+>>>>>>> 40640727e68736c6720f5f78ca3b3cd13053c137
 
     # Determine history algos and metrics
     hist_algos = [a for a in legend_order if any(c.startswith(a+'_') for c in cols)]

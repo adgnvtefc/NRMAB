@@ -12,6 +12,7 @@ import os
 
 from tianshou.policy import BasePolicy
 from tianshou.data import Batch, Collector, VectorReplayBuffer
+import copy
 from tianshou.env import DummyVectorEnv
 from tianshou.trainer import OffpolicyTrainer
 from tianshou.utils import TensorboardLogger
@@ -164,7 +165,14 @@ class CDSQNPolicy(BasePolicy):
         self.num_nodes = num_nodes
         self._gamma = gamma
         self.epsilon = epsilon
+        self._gamma = gamma
+        self.epsilon = epsilon
         self.action_dim = action_dim
+        
+        # Target Network for Stability
+        self.target_model = copy.deepcopy(model)
+        self.target_model.eval()
+        self.tau = 0.005 # Soft update rate
 
     def _prepare_batch_data(self, batch_obs):
         """
@@ -311,10 +319,11 @@ class CDSQNPolicy(BasePolicy):
         w1, w2, w3 = self.model.get_weights(x_flat, edge_index, batch_idx)
         current_q = self.model.compute_q(w1, w2, w3, actions) # [B]
         
-        # Target Q
+        # Target Q - Use Target Network
         with torch.no_grad():
             x_next_flat, edge_index_next, batch_idx_next, B_next = self._prepare_batch_data(batch.obs_next)
-            w1_next, w2_next, w3_next = self.model.get_weights(x_next_flat, edge_index_next, batch_idx_next)
+            # Use target_model
+            w1_next, w2_next, w3_next = self.target_model.get_weights(x_next_flat, edge_index_next, batch_idx_next)
             
             # Greedy maximization on Next State
             next_actions = torch.zeros(B_next, self.num_nodes, device=device)
@@ -340,8 +349,8 @@ class CDSQNPolicy(BasePolicy):
                 valid_cols = best_idx[valid_rows]
                 next_actions[valid_rows, valid_cols] = 1.0
             
-            # Evaluate Max Q
-            target_max_q = self.model.compute_q(w1_next, w2_next, w3_next, next_actions)
+            # Evaluate Max Q using Target Network
+            target_max_q = self.target_model.compute_q(w1_next, w2_next, w3_next, next_actions)
             target_q = rewards + self._gamma * (1 - dones) * target_max_q
 
         loss = F.mse_loss(current_q, target_q)
@@ -350,13 +359,17 @@ class CDSQNPolicy(BasePolicy):
         loss.backward()
         self.optim.step()
         
+        # Soft Update Target Network
+        for param, target_param in zip(self.model.parameters(), self.target_model.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            
         return TrainStepResult(loss=loss.item())
 
 log_path = os.path.join('logs', 'cdsqn')
 writer = SummaryWriter(log_path)
 logger = TensorboardLogger(writer)
 
-def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
+def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000, hidden_dim=64, learning_rate=1e-4):
     start_time = time.perf_counter()
     
     def get_env():
@@ -376,11 +389,10 @@ def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
         pass
         
     state_dim = 10 # 10 features per node
-    hidden_dim = 64
-    dsf_hidden_dim = 64
+    dsf_hidden_dim = hidden_dim # Use same dim for DSF layers
     
     model = CDSQN(config['num_nodes'], state_dim, hidden_dim, dsf_hidden_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
     policy = CDSQNPolicy(model, optimizer, action_dim=config['num_nodes'], num_nodes=config['num_nodes'], k=num_actions, gamma=0.99)
     

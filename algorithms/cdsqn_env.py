@@ -43,6 +43,8 @@ class CDSQNEnv(gym.Env):
         self.cascade_prob = config['cascade_prob']
         self.stop_percent = config['stop_percent']
         self.stop_percent = config['stop_percent']
+        self.stop_percent = config['stop_percent']
+        self.reward_scale = config.get('reward_scale', 100.0)
         self.gamma = 0.8 # Hardcoded to match deepq_env.py for consistent reward definition
 
         self.original_graph = config['graph']
@@ -88,7 +90,7 @@ class CDSQNEnv(gym.Env):
 
         # Align reward calculation with standard RL (immediate reward only)
         # Using ns.reward_function calculates the value of the current state (sum of active node values)
-        reward = ns.reward_function(self.graph, action_indices) / 100.0
+        reward = ns.reward_function(self.graph, action_indices) / self.reward_scale
         self.latest_step_reward = reward
 
         # State transitions
