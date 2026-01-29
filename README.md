@@ -1,67 +1,86 @@
-# Introduction
-This is the source code used to run the experiments in *Networked Restless Multi-Arm Bandits with
-Reinforcement Learning*. 
+# Networked Restless Multi-Arm Bandits with Reinforcement Learning
+
+**Authors**: Hanmo Zhang (CMU), Zenghui Sun (Georgia Tech), Kai Wang (Georgia Tech)
+
+## Abstract
+Restless Multi-Armed Bandits (RMABs) are a powerful framework for sequential decision-making, widely applied in resource allocation and intervention optimization challenges in public health. However, traditional RMABs assume independence among arms, limiting their ability to account for interactions between individuals that can be common and significant in a real-world environment. 
+
+This repository implements **Networked RMAB**, a novel framework that integrates the RMAB model with the independent cascade model to capture interactions between arms in networked environments. We introduce **Contextual Deep Submodular Q-Networks (CDSQN)**, a specialized Deep Q-Learning architecture that guarantees submodularity of the learned Q-function, enabling efficient $1-1/e$ approximate action selection via a greedy hill-climbing strategy. We prove that the Bellman operator under this hill-climbing strategy remains a $\gamma$-contraction, ensuring convergence.
+
+Experimental results on real-world graph data demonstrate that our Q-learning approach outperforms both $k$-step look-ahead and network-blind approaches, highlighting the importance of capturing and leveraging network effects where they exist.
+
+---
 
 ## Usage Instructions
 
-1. Run `reinstall.sh` to create the virtual environment (`venv`) and download all necessary dependencies.
-3. To replicate experimental results, run `python india_real_data_trial.py`, `python dqn_v_tabular.py`, or `python plot_ccost.py` respectively inside the `venv`.
-4. After experiments finish running, folders containing results will be created.
+1. **Setup**: Run `reinstall.sh` to create the virtual environment (`venv`) and install all dependencies.
+   ```bash
+   bash reinstall.sh
+   source venv/bin/activate
+   ```
 
-**Note that due to stochasticity in graph generation, experimental results may not be able to be exactly replicated. However, approximate results should uphold experimental validity.**
+2. **Replicate Experiments**:
+   - **Real-World Comparison (Figure 2)**: Run the India contact graph simulation.
+     ```bash
+     python india_real_data_trial.py
+     ```
+     *Compares CDSQN, DQN, Whittle Index, Hill-Climbing, and Random baselines.*
 
-## Existing Data
-*The data for Figure 2 is contained in `results/results_full_comparison/comparison_percent_activated_history_mean_std.pdf`*
+   - **Optimality Verification (Figure 3)**: Compare against optimal Tabular Q-Learning on small graphs.
+     ```bash
+     python dqn_v_tabular.py
+     ```
 
-*The data for Figure 3 is contained in `results/results_dqn_v_tabular/comparison_percent_activated_history_mean_std.pdf`*
+   - **Computational Cost (Figure 4)**: Benchmark training time vs. graph size.
+     ```bash
+     python benchmark_costs.py
+     python plot_ccost.py
+     ```
 
-*The data for Figure 4 is contained in `results/results_c_cost/computational_cost.pdf`*
-# Source Code Description
+3. **Results**: Output plots and data are saved to the `real_data_trials/results`, `real_data_trials/dvt`, and `real_data_trials/c_cost` directories.
 
-## Experiments
+---
 
-Below are the three scripts used to produce the data for figures 2, 3, and 4 in that order:
+## Source Code Description
 
-| Script | What it shows | 
-|--------|---------------|
-| **`india_real_data_trial.py`** | Real‑world India contact graph<br>Compares 5 strategies (GNN, DQN, 1-step lookahead, Whittle index, and a “no‑action” baseline) for 10 random seeds. | 
-| **`dqn_v_tabular.py`** | Compares performance of DQN and GNN vs. Tabular Q-Learning on a synthetic 10‑node graph|
-| **`plot_ccost.py`** | Computational cost sweep: renders the time‑per‑epoch of Tabular, DQN, and GNN agents as a function of graph size (2 → 11 nodes). | 
+### Experiments
+| Script | Description |
+|--------|-------------|
+| **`india_real_data_trial.py`** | Runs the main comparison on the 202-node India contact network. Evaluates strategies (CDSQN, DQN, Whittle, HillClimb, Random) over multiple seeds. |
+| **`dqn_v_tabular.py`** | Validates CDSQN and DQN performance against the optimal Tabular Bellman solution on a small (n=10) graph to prove near-optimality. |
+| **`benchmark_costs.py`** | Collects runtime data for Tabular, DQN, and CDSQN across varying node counts. |
+| **`plot_ccost.py`** | Visualizes the computational cost benchmark data. |
 
-## NRMAB Algorithms in `/algorithms`
-
+### Algorithms (`/algorithms`)
 | Algorithm | File | Highlights |
 |-----------|------|------------|
-| **Deep Q‑Network** | `algorithms/deepq.py` | vanilla feed‑forward Q‑net with ε‑greedy K‑step action construction, trained with [Tianshou] collectors and TensorBoard logging.|
-| **Graph Neural Netowrk** | `algorithms/graphq.py` | deeper GCN backbone, Double DQN + Prioritised Replay; operates on PyTorch‑Geometric graphs. |
-| **1-step lookahead** | `algorithms/hillClimb.py` | fast greedy scorer plus an exact Bellman variant for small horizons. |
-| **Tabular Bellman** | `algorithms/tabularbellman.py` | exhaustive Q‑table with enumerated binary node states; useful for ground‑truth on toy graphs.|
-| **Whittle Index policy** | `algorithms/whittle.py` | single‑threaded Whittle‑index calculator for restless‑bandit style node models. |
+| **Contextual Deep Submodular Q-Net** | `cdsqn.py` | **(Novel)** Hypernetwork-based architecture enforcing submodularity via concave activations and positive weights. |
+| **Deep Q-Network** | `deepq.py` | Standard MLP-based DQN with greedy action selection. |
+| **Whittle Index** | `whittle.py` | Classic RMAB index policy, unaware of network effects. |
+| **1-Step Lookahead** | `hillClimb.py` | Greedy heuristic optimizing immediate gain. |
+| **Tabular Bellman** | `tabularbellman.py` | Exact value iteration for small state spaces (ground truth). |
 
-The environments live in:
+### Environments
+- **`algorithms/cdsqn_env.py`**: Environment wrapper for CDSQN, handling graph state representations.
+- **`algorithms/deepq_env.py`**: Standard binary multi-action space environment.
 
-* **`algorithms/deepq_env.py`** – binary multi‑action space (`MultiBinary`) where an agent seeds *k* nodes per step. 
-* **`algorithms/graphq_env.py`** – single‑action space with rich 10‑dim node features exported as a PyG `Data` object. 
+### Data
+- **`graphs/India.txt`**: 202-node, 692-edge undirected contact network from an Indian village, used for the main experimental validation.
 
-## Graphs
+---
 
-`graphs/India.txt` contains the raw graph edge‑list (whitespace‑separated `src dst` pairs) used in `india_real_data_trial.py`.
+## Key Results
+- **Performance**: CDSQN achieves the highest cumulative reward on the India contact network, outperforming both standard DQN ($p \approx 0.067$) and the Whittle Index ($p < 0.01$).
+- **Optimality**: On small graphs, CDSQN matches the performance of the optimal Tabular Q-Learning policy.
+- **Scalability**: CDSQN's computational cost grows linearly with graph size, whereas the optimal Tabular solution scales exponentially.
 
-| File | Description |
-|------|-------------|
-| **India.txt** | 202‑node, 692‑edge undirected call‑graph of a contact network in an Indian village. Used by `india_real_data_trial.py`.|
-
-## Helper Utilities
-
-These modules sit behind the RL agents and experiments in this repository.  
-They generate graphs, run large‑scale comparisons, and produce publication‑quality plots.
-
-| Module | Purpose | 
-|--------|---------|
-| **`comparisons.py`** | Orchestrates **training and evaluation** across multiple algorithms (DQN, GNN, Whittle, 1-step lookahead, etc.). Handles model caching, per‑timestep simulation, and aggregates results for plotting.|
-| **`networkSim.py`** | Low‑level **graph simulator**: creates random graphs, executes node‑state transitions, independent‑cascade spread, and Monte‑Carlo look‑ahead value functions.|
-| **`plotting.py`** | **Plotting + history tracker** with an “academic” Matplotlib/Seaborn style. Saves per‑run CSVs, then plots mean ± STD and cumulative metrics across all historical runs.| `plot_trials`, `aggregate_history` |
-| **`simpleNode.py`** | Handles node-level logic in the graph.|
-
-## Results
-The full suite of results can be found in `\results`.
+## Citation
+If you use this code found in this repository, please cite:
+```bibtex
+@article{zhang2026networked,
+  title={Networked Restless Multi-Arm Bandits with Reinforcement Learning},
+  author={Zhang, Hanmo and Sun, Zenghui and Wang, Kai},
+  journal={ICML},
+  year={2026}
+}
+```
