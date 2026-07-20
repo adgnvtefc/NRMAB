@@ -46,6 +46,9 @@ class NetworkInfluenceEnv(gym.Env):
         super().reset(seed=seed)
         if seed is not None:
             np.random.seed(seed)
+        # multi-graph training: resample a fresh family graph each episode
+        if self.config.get('graph_sampler') is not None:
+            self.original_graph = self.config['graph_sampler']()
         # Reset the network to the initial state
         self.graph = copy.deepcopy(self.original_graph)
         self.state = np.zeros(self.num_nodes, dtype=np.int8)

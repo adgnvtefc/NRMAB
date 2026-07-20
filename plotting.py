@@ -38,7 +38,8 @@ formal_name = {
     'hillclimb': '1-step lookahead',
     'whittle': 'Whittle',
     'none': 'None',
-    'tabular': 'Tabular'
+    'tabular': 'Tabular',
+    'random': 'Random'
 }
 # Fixed, distinctive colors for each algorithm
 colors = {
@@ -47,7 +48,8 @@ colors = {
     'whittle':   '#2ca02c',
     'none':      '#9467bd',
     'tabular':   '#17becf',
-    'cdsqn':     '#ff7f0e'
+    'cdsqn':     '#ff7f0e',
+    'random':    '#7f7f7f'
 }
 # Distinctive markers
 markers = {
@@ -56,7 +58,8 @@ markers = {
     'whittle':   '^',
     'none':      'v',
     'tabular':   '*',
-    'cdsqn':     's'
+    'cdsqn':     's',
+    'random':    'x'
 }
 # Legend order
 legend_order = ['cdsqn', 'dqn', 'whittle', 'hillclimb', 'none', 'tabular', 'random']
@@ -114,7 +117,9 @@ def plot_trials(
         print("Need at least 2 history runs to plot history.")
         return
     dfs = [pd.read_csv(f) for f in files]
-    cols = [c for c in dfs[0].columns if c.endswith('_mean')]
+    # Only aggregate columns present in every history file (runs may differ in algorithms)
+    common = set.intersection(*(set(df.columns) for df in dfs))
+    cols = [c for c in dfs[0].columns if c.endswith('_mean') and c in common]
     print(cols)
 
     # Determine min length to handle shape mismatches

@@ -8,32 +8,56 @@ import networkx as nx
 import copy
 from networkSim import NetworkSim as ns
 
+# edge_index depends only on topology, which never changes within an
+# experiment — cache it instead of rebuilding (the old path called PyG's
+# from_networkx, which deep-copies the whole graph on EVERY env step).
+_EDGE_INDEX_CACHE = {}
+
 def convert_nx_to_pyg(G: nx.Graph, last_action_indices=None, current_step=None) -> Data:
     """
     Convert a NetworkX graph to a PyG Data object with enhanced node features.
+    Feature semantics identical to the original implementation.
     """
     total_nodes = G.number_of_nodes()
-    total_active = sum(1 for i in G.nodes() if G.nodes[i]['obj'].isActive())
-    fraction_active = float(total_active) / total_nodes if total_nodes > 0 else 0.0
+    # hash of the edge set: degree-preserving rewires keep (n, e) identical, so
+    # topology must be part of the key
+    key = (total_nodes, G.number_of_edges(), hash(frozenset(map(frozenset, G.edges()))))
+    cached = _EDGE_INDEX_CACHE.get(key)
+    if cached is None:
+        nodes = list(G.nodes())
+        idx = {n: i for i, n in enumerate(nodes)}
+        src, dst = [], []
+        for u, v in G.edges():
+            src += [idx[u], idx[v]]
+            dst += [idx[v], idx[u]]
+        cached = (torch.tensor([src, dst], dtype=torch.long), idx)
+        _EDGE_INDEX_CACHE[key] = cached
+    edge_index, idx = cached
+
+    objs = [G.nodes[n]['obj'] for n in G.nodes()]
+    active = [1.0 if o.isActive() else 0.0 for o in objs]
+    fraction_active = sum(active) / total_nodes if total_nodes > 0 else 0.0
+    normalized_step = 0.0 if current_step is None else min(current_step / 50.0, 1.0)
+    acted = set(last_action_indices) if last_action_indices is not None else set()
+
+    nbr_active = [0.0] * total_nodes
     for n in G.nodes():
-        node_obj = G.nodes[n]['obj']
-        was_acted_on = 1.0 if (last_action_indices is not None and n in last_action_indices) else 0.0
-        active_neighbor_count = sum(1 for nbr in G.neighbors(n) if G.nodes[nbr]['obj'].isActive())
-        normalized_step = 0.0 if current_step is None else min(current_step / 50.0, 1.0)
-        G.nodes[n]['x'] = torch.tensor([
-            float(node_obj.isActive()),
-            node_obj.getValue(),
-            node_obj.active_activation_active,
-            node_obj.active_activation_passive,
-            node_obj.passive_activation_active,
-            node_obj.passive_activation_passive,
-            was_acted_on,
-            float(active_neighbor_count),
-            fraction_active,
-            normalized_step,
-        ], dtype=torch.float)
-    data = from_networkx(G)
-    return data
+        i = idx[n]
+        c = 0.0
+        for nb in G.neighbors(n):
+            c += active[idx[nb]]
+        nbr_active[i] = c
+
+    rows = [None] * total_nodes
+    for n in G.nodes():
+        i = idx[n]
+        o = objs[i]
+        rows[i] = [active[i], o.value,
+                   o.active_activation_active, o.active_activation_passive,
+                   o.passive_activation_active, o.passive_activation_passive,
+                   1.0 if n in acted else 0.0, nbr_active[i],
+                   fraction_active, normalized_step]
+    return Data(x=torch.tensor(rows, dtype=torch.float), edge_index=edge_index)
 
 class CDSQNEnv(gym.Env):
     def __init__(self, config, render_mode=None):
@@ -66,6 +90,9 @@ class CDSQNEnv(gym.Env):
     def reset(self, seed=None, options=None):
         if seed is not None:
             np.random.seed(seed)
+        # multi-graph training: resample a fresh family graph each episode
+        if self.config.get('graph_sampler') is not None:
+            self.original_graph = self.config['graph_sampler']()
         self.graph = copy.deepcopy(self.original_graph)
         self.last_action_indices = None
         self.current_step = 0

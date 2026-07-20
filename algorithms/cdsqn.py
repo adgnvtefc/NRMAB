@@ -44,30 +44,56 @@ class HyperGNN(nn.Module):
         self.conv2 = GCNConv(hidden_dim, hidden_dim)
         self.conv3 = GCNConv(hidden_dim, embedding_dim)
         
-    def forward(self, x, edge_index, batch_index=None):
+    def forward(self, x, edge_index, batch_index=None, return_nodes=False):
         x = F.relu(self.conv1(x, edge_index))
         x = F.relu(self.conv2(x, edge_index))
         x = self.conv3(x, edge_index)
-        
+
         if batch_index is None:
             batch_index = torch.zeros(x.size(0), dtype=torch.long, device=x.device)
-            
+
         h_g = global_mean_pool(x, batch_index)
+        if return_nodes:
+            return h_g, x
         return h_g
 
 class CDSQN(nn.Module):
-    def __init__(self, num_nodes, node_feat_dim, hidden_dim, dsf_hidden_dim, num_heads=3):
+    def __init__(self, num_nodes, node_feat_dim, hidden_dim, dsf_hidden_dim, num_heads=3, nodewise=False,
+                 dueling=False, linear_head=False):
         super().__init__()
         self.num_nodes = num_nodes
         self.dsf_hidden_dim = dsf_hidden_dim
         self.num_heads = num_heads
-        
+        self.nodewise = nodewise
+        self.dueling = dueling
+        self.linear_head = linear_head
+
         self.context_net = HyperGNN(node_feat_dim, hidden_dim, hidden_dim)
-        
-        self.w1_gen = nn.Linear(hidden_dim, num_heads * num_nodes * dsf_hidden_dim)
+
+        if dueling:
+            # Dueling decomposition Q(s,A) = V(s) + G(s,A): the V stream is a
+            # fully UNCONSTRAINED network — for fixed s it is a constant in A,
+            # so submodularity/monotonicity of Q in A and the greedy argmax
+            # are untouched, while the DSF G no longer has to express the
+            # large state-value scale through concave activations.
+            self.v_head = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim), nn.ReLU(),
+                nn.Linear(hidden_dim, 1))
+        # min over heads is NOT submodularity-preserving (submodular functions
+        # are closed under non-negative sums, not min) — dueling models use sum.
+        self.head_agg = 'sum' if dueling else 'min'
+
+        if nodewise:
+            # v2: per-node DSF weights generated from each node's OWN GNN
+            # embedding via a shared MLP — parameter count independent of N,
+            # permutation-aware, scales to large graphs. Softplus keeps
+            # non-negativity, so submodularity is preserved.
+            self.w1_gen = nn.Linear(hidden_dim, num_heads * dsf_hidden_dim)
+        else:
+            self.w1_gen = nn.Linear(hidden_dim, num_heads * num_nodes * dsf_hidden_dim)
         self.w2_gen = nn.Linear(hidden_dim, num_heads * dsf_hidden_dim * dsf_hidden_dim)
         self.w3_gen = nn.Linear(hidden_dim, num_heads * dsf_hidden_dim * 1)
-        
+
         self.act1 = SafeSqrt()
         self.act2 = SafeLog()
 
@@ -78,20 +104,39 @@ class CDSQN(nn.Module):
         nn.init.constant_(self.w2_gen.bias, 0.1)
         nn.init.constant_(self.w3_gen.bias, 0.1)
 
+    def get_weights_and_value(self, x, edge_index, batch_index):
+        """Like get_weights, but also returns the unconstrained state value
+        V(s) [B] (None when the model is not dueling)."""
+        w1, w2, w3, h_g = self._weights_impl(x, edge_index, batch_index)
+        v = self.v_head(h_g).squeeze(-1) if self.dueling else None
+        return w1, w2, w3, v
+
     def get_weights(self, x, edge_index, batch_index):
-        h_g = self.context_net(x, edge_index, batch_index)
-        batch_size = h_g.size(0)
-        
-        w1_raw = self.w1_gen(h_g).view(batch_size, self.num_heads, self.num_nodes, self.dsf_hidden_dim)
+        w1, w2, w3, _ = self._weights_impl(x, edge_index, batch_index)
+        return w1, w2, w3
+
+    def _weights_impl(self, x, edge_index, batch_index):
+        if self.nodewise:
+            h_g, h_nodes = self.context_net(x, edge_index, batch_index, return_nodes=True)
+            batch_size = h_g.size(0)
+            # h_nodes: [B*N, hidden] -> w1 [B, heads, N, H]
+            # -1 (not self.num_nodes): a nodewise model is size-agnostic and can
+            # run zero-shot on graphs of any size (unlike DQN's fixed input dim)
+            w1_raw = self.w1_gen(h_nodes).view(batch_size, -1, self.num_heads, self.dsf_hidden_dim)
+            w1_raw = w1_raw.permute(0, 2, 1, 3)
+        else:
+            h_g = self.context_net(x, edge_index, batch_index)
+            batch_size = h_g.size(0)
+            w1_raw = self.w1_gen(h_g).view(batch_size, self.num_heads, self.num_nodes, self.dsf_hidden_dim)
         w2_raw = self.w2_gen(h_g).view(batch_size, self.num_heads, self.dsf_hidden_dim, self.dsf_hidden_dim)
         w3_raw = self.w3_gen(h_g).view(batch_size, self.num_heads, self.dsf_hidden_dim, 1)
-        
+
         w1 = F.softplus(w1_raw)
         w2 = F.softplus(w2_raw)
         w3 = F.softplus(w3_raw)
-        
-        return w1, w2, w3
-        
+
+        return w1, w2, w3, h_g
+
     def compute_q(self, w1, w2, w3, actions):
         actions = actions.float()
         
@@ -99,31 +144,41 @@ class CDSQN(nn.Module):
             # [Batch, Num_Nodes]
             actions = actions.view(actions.size(0), 1, 1, actions.size(1))
             h1 = torch.matmul(actions, w1)
-            h1 = self.act1(h1)
-            h2 = torch.matmul(h1, w2)
-            h2 = self.act2(h2)
-            out_heads = torch.matmul(h2, w3)
+            h1a = self.act1(h1)
+            if getattr(self, 'linear_head', False):
+                h1a = torch.cat([h1[:, :1], h1a[:, 1:]], dim=1)
+            h2 = torch.matmul(h1a, w2)
+            h2a = self.act2(h2)
+            if getattr(self, 'linear_head', False):
+                h2a = torch.cat([h2[:, :1], h2a[:, 1:]], dim=1)
+            out_heads = torch.matmul(h2a, w3)
             out_heads = out_heads.view(out_heads.size(0), -1)
             
         elif actions.dim() == 3:
             # [Batch, Candidates, Num_Nodes]
-            B, C, N = actions.shape
-            actions = actions.view(B, C, 1, 1, N)
-            w1_exp = w1.unsqueeze(1)
-            w2_exp = w2.unsqueeze(1)
-            w3_exp = w3.unsqueeze(1)
-            
-            h1 = torch.matmul(actions, w1_exp)
-            h1 = self.act1(h1)
-            h2 = torch.matmul(h1, w2_exp)
-            h2 = self.act2(h2)
-            out_heads = torch.matmul(h2, w3_exp)
-            out_heads = out_heads.view(B, C, -1)
-            
+            # einsum keeps memory at O(B*C*heads*H) — the broadcast-matmul
+            # formulation materialized w1 as [B,C,heads,N,H], OOM at large N.
+            h1 = torch.einsum('bcn,bknh->bckh', actions, w1)
+            h1a = self.act1(h1)
+            if getattr(self, 'linear_head', False):
+                # head 0 stays LINEAR (identity is concave, so a modular term is
+                # submodular): it can store per-node scores exactly, without the
+                # concave squashing tax; the remaining heads model interactions.
+                h1a = torch.cat([h1[:, :, :1], h1a[:, :, 1:]], dim=2)
+            h2 = torch.einsum('bckh,bkhg->bckg', h1a, w2)
+            h2a = self.act2(h2)
+            if getattr(self, 'linear_head', False):
+                h2a = torch.cat([h2[:, :, :1], h2a[:, :, 1:]], dim=2)
+            out_heads = torch.einsum('bckg,bkgo->bcko', h2a, w3)
+            out_heads = out_heads.squeeze(-1)
+
         else:
             raise ValueError(f"Unsupported action shape: {actions.shape}")
 
-        q_values, _ = torch.min(out_heads, dim=-1)
+        if getattr(self, 'head_agg', 'min') == 'sum':
+            q_values = out_heads.sum(dim=-1)
+        else:
+            q_values, _ = torch.min(out_heads, dim=-1)
         return q_values
 
     def forward(self, x, edge_index, batch_index, actions):
@@ -157,7 +212,7 @@ class TrainStepResult:
 
 # Policy
 class CDSQNPolicy(BasePolicy):
-    def __init__(self, model, optim, action_dim, num_nodes, k=5, gamma=0.99, epsilon=1.0):
+    def __init__(self, model, optim, action_dim, num_nodes, k=5, gamma=0.99, epsilon=1.0, guide_scores=None):
         super().__init__(action_space=gym.spaces.MultiBinary(action_dim))
         self.model = model
         self.optim = optim
@@ -165,9 +220,11 @@ class CDSQNPolicy(BasePolicy):
         self.num_nodes = num_nodes
         self._gamma = gamma
         self.epsilon = epsilon
-        self._gamma = gamma
-        self.epsilon = epsilon
         self.action_dim = action_dim
+        # Optional static per-node heuristic scores; when set, half of the
+        # exploratory picks follow the heuristic instead of uniform random.
+        self.guide_scores = guide_scores
+        self._guide_t = None  # lazily created tensor on the model device
         
         # Target Network for Stability
         self.target_model = copy.deepcopy(model)
@@ -278,9 +335,17 @@ class CDSQNPolicy(BasePolicy):
             
             # Exploration
             if np.random.random() < self.epsilon:
+                if self.guide_scores is not None and self._guide_t is None:
+                    self._guide_t = torch.tensor(self.guide_scores, dtype=torch.float32, device=device)
                 # Random selection among valid candidates
                 # Naive: pick random index where mask is 1
                 for i in range(B):
+                    if self.guide_scores is not None and np.random.random() < 0.5:
+                        # Guided exploration: best heuristic-scored candidate
+                        masked = self._guide_t.masked_fill(~candidate_mask[i].bool(), -float('inf'))
+                        if torch.isfinite(masked.max()):
+                            best_idx[i] = int(torch.argmax(masked))
+                        continue
                     indices = candidate_mask[i].nonzero().squeeze()
                     if indices.numel() > 0:
                         if indices.numel() == 1:
@@ -316,14 +381,16 @@ class CDSQNPolicy(BasePolicy):
         
         # Current Q
         x_flat, edge_index, batch_idx, B = self._prepare_batch_data(batch.obs)
-        w1, w2, w3 = self.model.get_weights(x_flat, edge_index, batch_idx)
+        w1, w2, w3, v_s = self.model.get_weights_and_value(x_flat, edge_index, batch_idx)
         current_q = self.model.compute_q(w1, w2, w3, actions) # [B]
-        
+        if v_s is not None:
+            current_q = current_q + v_s
+
         # Target Q - Use Target Network
         with torch.no_grad():
             x_next_flat, edge_index_next, batch_idx_next, B_next = self._prepare_batch_data(batch.obs_next)
             # Use target_model
-            w1_next, w2_next, w3_next = self.target_model.get_weights(x_next_flat, edge_index_next, batch_idx_next)
+            w1_next, w2_next, w3_next, v_next = self.target_model.get_weights_and_value(x_next_flat, edge_index_next, batch_idx_next)
             
             # Greedy maximization on Next State
             next_actions = torch.zeros(B_next, self.num_nodes, device=device)
@@ -351,6 +418,8 @@ class CDSQNPolicy(BasePolicy):
             
             # Evaluate Max Q using Target Network
             target_max_q = self.target_model.compute_q(w1_next, w2_next, w3_next, next_actions)
+            if v_next is not None:
+                target_max_q = target_max_q + v_next
             target_q = rewards + self._gamma * (1 - dones) * target_max_q
 
         loss = F.mse_loss(current_q, target_q)
@@ -369,20 +438,26 @@ log_path = os.path.join('logs', 'cdsqn')
 writer = SummaryWriter(log_path)
 logger = TensorboardLogger(writer)
 
-def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000, hidden_dim=64, learning_rate=1e-4):
+def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000, hidden_dim=64, learning_rate=1e-4,
+                      gamma=0.99, update_per_step=0.1,
+                      eps_decay_steps=50000, eps_final=0.1, max_episode_steps=None,
+                      guided_exploration=False, nodewise=False, dueling=False, model=None):
     start_time = time.perf_counter()
-    
+
     def get_env():
-        return CDSQNEnv(config)
-        
+        env = CDSQNEnv(config)
+        if max_episode_steps is not None:
+            env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
+        return env
+
     train_envs = DummyVectorEnv([get_env for _ in range(10)])
     test_envs = DummyVectorEnv([get_env for _ in range(1)])
-    
+
     def stop_fn(mean_rewards):
         return False
-        
+
     def train_fn(epoch, env_step):
-        epsilon = max(0.1, 1 - env_step / 50000)
+        epsilon = max(eps_final, 1 - env_step / eps_decay_steps)
         policy.epsilon = epsilon
         
     def test_fn(epoch, env_step):
@@ -391,12 +466,22 @@ def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000, hi
     state_dim = 10 # 10 features per node
     dsf_hidden_dim = hidden_dim # Use same dim for DSF layers
     
-    model = CDSQN(config['num_nodes'], state_dim, hidden_dim, dsf_hidden_dim)
+    if model is None:
+        model = CDSQN(config['num_nodes'], state_dim, hidden_dim, dsf_hidden_dim, nodewise=nodewise, dueling=dueling).to(
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"))
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     
-    policy = CDSQNPolicy(model, optimizer, action_dim=config['num_nodes'], num_nodes=config['num_nodes'], k=num_actions, gamma=0.99)
+    guide = None
+    if guided_exploration:
+        from algorithms.hillClimb import HillClimb
+        guide = HillClimb.static_scores(config['graph'])
+    policy = CDSQNPolicy(model, optimizer, action_dim=config['num_nodes'], num_nodes=config['num_nodes'], k=num_actions, gamma=gamma,
+                         guide_scores=guide)
     
-    train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000, buffer_num=10))
+    # 8000 > any training run's total env steps here, so no transition is ever
+    # evicted either way; the smaller size just avoids preallocating ~8 GB of
+    # duplicated edge_index storage per process at n=1899.
+    train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=8000, buffer_num=10))
     
     result = OffpolicyTrainer(
         policy=policy,
@@ -407,7 +492,7 @@ def train_cdsqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000, hi
         step_per_collect=50,
         episode_per_test=0,
         batch_size=16,
-        update_per_step=0.1,
+        update_per_step=update_per_step,
         train_fn=train_fn,
         test_fn=test_fn,
         stop_fn=stop_fn,

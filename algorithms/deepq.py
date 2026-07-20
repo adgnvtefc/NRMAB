@@ -43,7 +43,7 @@ class QNet(nn.Module):
 
 # Define the custom policy
 class CustomQPolicy(BasePolicy):
-    def __init__(self, model, optim, action_dim, k=5, gamma=0.95, epsilon=1.0):
+    def __init__(self, model, optim, action_dim, k=5, gamma=0.95, epsilon=1.0, guide_scores=None):
         super().__init__(action_space=gym.spaces.MultiBinary(action_dim))
         self.model = model
         self.optim = optim
@@ -51,6 +51,9 @@ class CustomQPolicy(BasePolicy):
         self.action_dim = action_dim
         self._gamma = gamma
         self.epsilon = epsilon  # Epsilon for epsilon-greedy exploration
+        # Optional static per-node heuristic scores; when set, half of the
+        # exploratory picks follow the heuristic instead of uniform random.
+        self.guide_scores = guide_scores
 
     def forward(self, batch, state=None):
         obs = batch.obs  # Shape: [batch_size, state_dim]
@@ -78,14 +81,13 @@ class CustomQPolicy(BasePolicy):
                 if type(available_indices) == int:
                     available_indices = [available_indices]
 
-                # Generate actions for available nodes
-                actions_list = []
-                for idx in available_indices:
-                    action = torch.zeros(self.action_dim, device=device)
-                    action[idx] = 1
-                    actions_list.append(action)
-                actions_tensor = torch.stack(actions_list)  # Shape: [num_available, action_dim]
-                states_tensor = state_i.unsqueeze(0).repeat(len(available_indices), 1)  # Shape: [num_available, state_dim]
+                # Generate actions for available nodes (index a cached identity
+                # matrix — building N tensors in a Python loop dominated runtime)
+                if not hasattr(self, '_eye') or self._eye.device != device:
+                    self._eye = torch.eye(self.action_dim, device=device)
+                avail_t = torch.tensor(available_indices, dtype=torch.long, device=device)
+                actions_tensor = self._eye[avail_t]  # [num_available, action_dim]
+                states_tensor = state_i.unsqueeze(0).expand(len(available_indices), -1)  # [num_available, state_dim]
 
                 # Compute Q-values
                 with torch.no_grad():
@@ -93,8 +95,12 @@ class CustomQPolicy(BasePolicy):
 
                 # Apply epsilon-greedy
                 if random.random() < self.epsilon:
-                    # Exploration: Randomly select an available action
-                    selected_idx = random.choice(range(len(available_indices)))
+                    if self.guide_scores is not None and random.random() < 0.5:
+                        # Guided exploration: best heuristic-scored available node
+                        selected_idx = int(np.argmax([self.guide_scores[j] for j in available_indices]))
+                    else:
+                        # Exploration: Randomly select an available action
+                        selected_idx = random.choice(range(len(available_indices)))
                 else:
                     # Exploitation: Select the action with highest Q-value
                     selected_idx = torch.argmax(q_values).item()
@@ -156,13 +162,11 @@ class CustomQPolicy(BasePolicy):
                     if type(available_indices) == int:
                         available_indices = [available_indices]
 
-                    actions_list = []
-                    for idx in available_indices:
-                        action = torch.zeros(self.action_dim, device=next_state.device)
-                        action[idx] = 1
-                        actions_list.append(action)
-                    actions_tensor = torch.stack(actions_list)
-                    states_tensor = next_state.unsqueeze(0).repeat(len(available_indices), 1)
+                    if not hasattr(self, '_eye') or self._eye.device != next_state.device:
+                        self._eye = torch.eye(self.action_dim, device=next_state.device)
+                    avail_t = torch.tensor(available_indices, dtype=torch.long, device=next_state.device)
+                    actions_tensor = self._eye[avail_t]
+                    states_tensor = next_state.unsqueeze(0).expand(len(available_indices), -1)
                     q_vals = self.model(states_tensor, actions_tensor).squeeze()
                     max_q_value = q_vals.max().item()
                 next_q_values.append(max_q_value)
@@ -200,13 +204,19 @@ class TrainStepResult:
     
 
 
-def train_dqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
+def train_dqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000,
+                    lr=1e-5, gamma=0.99, update_per_step=0.1,
+                    eps_decay_steps=50000, eps_final=0.1, max_episode_steps=None,
+                    guided_exploration=False, model=None):
     start_time = time.perf_counter()
 
     # Set up environment
     def get_env():
-        return NetworkInfluenceEnv(config)
-    
+        env = NetworkInfluenceEnv(config)
+        if max_episode_steps is not None:
+            env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
+        return env
+
     train_envs = DummyVectorEnv([get_env for _ in range(10)])
     test_envs = DummyVectorEnv([get_env for _ in range(1)])
 
@@ -214,7 +224,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
         return False
 
     def train_fn(epoch, env_step):
-        epsilon = max(0.1, 1 - env_step / 50000)  # Linear decay
+        epsilon = max(eps_final, 1 - env_step / eps_decay_steps)  # Linear decay
         policy.epsilon = epsilon
     def test_fn(epoch, env_step):
         pass
@@ -223,9 +233,16 @@ def train_dqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
     state_dim = config['num_nodes']
     action_dim = config['num_nodes']
 
-    model = QNet(state_dim, action_dim)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-    policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=0.99)
+    if model is None:
+        model = QNet(state_dim, action_dim).to(
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    guide = None
+    if guided_exploration:
+        from algorithms.hillClimb import HillClimb
+        guide = HillClimb.static_scores(config['graph'])
+    policy = CustomQPolicy(model, optimizer, action_dim=action_dim, k=num_actions, gamma=gamma,
+                           guide_scores=guide)
 
     # Set up collectors
     train_collector = Collector(policy, train_envs, VectorReplayBuffer(total_size=20000 * train_envs.env_num, buffer_num=train_envs.env_num))
@@ -241,7 +258,7 @@ def train_dqn_agent(config, num_actions, num_epochs=3, step_per_epoch=1000):
         step_per_collect=50,
         episode_per_test=0,
         batch_size=64,
-        update_per_step=0.1,
+        update_per_step=update_per_step,
         train_fn=train_fn,
         test_fn=test_fn,
         stop_fn=stop_fn,

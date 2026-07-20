@@ -28,7 +28,7 @@ class Comparisons:
             "cdsqn": self.run_single_cdsqn
         }
 
-    def train_dqn(self, initial_graph, num_actions, cascade_prob, num_epochs=3):
+    def train_dqn(self, initial_graph, num_actions, cascade_prob, num_epochs=3, step_per_epoch=500, **train_kwargs):
         config = {
             "graph": copy.deepcopy(initial_graph),
             "num_nodes": len(initial_graph.nodes),
@@ -39,11 +39,11 @@ class Comparisons:
         }
         print(f"Training DQN agent for {num_epochs} epochs...")
         model, policy = train_dqn_agent(
-            config, num_actions, num_epochs=num_epochs, step_per_epoch=500
+            config, num_actions, num_epochs=num_epochs, step_per_epoch=step_per_epoch, **train_kwargs
         )
         self.models['dqn'] = model.to(self.device)
 
-    def train_cdsqn(self, initial_graph, num_actions, cascade_prob, num_epochs=3):
+    def train_cdsqn(self, initial_graph, num_actions, cascade_prob, num_epochs=3, step_per_epoch=500, **train_kwargs):
         config = {
             "graph": copy.deepcopy(initial_graph),
             "num_nodes": len(initial_graph.nodes),
@@ -55,7 +55,8 @@ class Comparisons:
         }
         print(f"Training CDSQN agent for {num_epochs} epochs...")
         model, policy = train_cdsqn_agent(
-            config, num_actions, num_epochs=num_epochs, step_per_epoch=500 # Use same epochs as DQN for fair comparison
+            config, num_actions, num_epochs=num_epochs, step_per_epoch=step_per_epoch, # Use same epochs as DQN for fair comparison
+            **train_kwargs
         )
         self.models['cdsqn'] = model.to(self.device)
 

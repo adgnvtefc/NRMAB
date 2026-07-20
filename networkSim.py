@@ -6,20 +6,29 @@ import copy
 import math
 
 class NetworkSim:
-    @staticmethod    
-    def generate_random_nodes(num, value_low, value_high):
-        
+    # Default transition-probability ranges (the paper's original regime).
+    # aa: stay active given action, ap: stay active passively,
+    # pa: activate given action, pp: activate spontaneously.
+    DEFAULT_PROB_RANGES = {"aa": (0.8, 1.0), "ap": (0.7, None),
+                           "pa": (0.5, 1.0), "pp": (0.0, None)}
+
+    @staticmethod
+    def generate_random_nodes(num, value_low, value_high, prob_ranges=None):
+        pr = {**NetworkSim.DEFAULT_PROB_RANGES, **(prob_ranges or {})}
         nodes = {}
         for i in range(num):
             # Define ranges for transition probabilities
             # Active actions have better transition probabilities
 
             #ensure active nodes don't deactivate too often
-            active_activation_active_action = round(random.uniform(0.8, 1.0), 4)
-            active_activation_passive_action = round(random.uniform(0.7, active_activation_active_action), 4)
+            active_activation_active_action = round(random.uniform(*pr["aa"]), 4)
+            # a None upper bound means "capped by the corresponding action prob"
+            ap_hi = pr["ap"][1] if pr["ap"][1] is not None else active_activation_active_action
+            active_activation_passive_action = round(random.uniform(pr["ap"][0], min(ap_hi, active_activation_active_action)), 4)
 
-            passive_activation_active_action = round(random.uniform(0.5, 1), 4)
-            passive_activation_passive_action = round(random.uniform(0.0, passive_activation_active_action), 4)
+            passive_activation_active_action = round(random.uniform(*pr["pa"]), 4)
+            pp_hi = pr["pp"][1] if pr["pp"][1] is not None else passive_activation_active_action
+            passive_activation_passive_action = round(random.uniform(pr["pp"][0], min(pp_hi, passive_activation_active_action)), 4)
 
             node_value = random.uniform(value_low, value_high)
 
@@ -261,7 +270,7 @@ class NetworkSim:
         return new_graph
 
     @staticmethod    
-    def build_graph_from_edgelist(edgelist_path, value_low, value_high):
+    def build_graph_from_edgelist(edgelist_path, value_low, value_high, prob_ranges=None):
         edges = []
         with open(edgelist_path, 'r') as f:
             for line in f:
@@ -279,7 +288,7 @@ class NetworkSim:
         unique_nodes = sorted(unique_nodes)
         num_nodes = len(unique_nodes)
 
-        random_nodes = NetworkSim.generate_random_nodes(num_nodes, value_low, value_high)
+        random_nodes = NetworkSim.generate_random_nodes(num_nodes, value_low, value_high, prob_ranges=prob_ranges)
 
         G = nx.Graph()
 
